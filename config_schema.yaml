@@ -32,7 +32,7 @@ pipes:
         branch:
           active: master
           target: master
-        expression: "{path1} and {path2}"
+        expression: path1 and path2
         diff:
           - path: regex
             label: path1

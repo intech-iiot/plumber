@@ -1,7 +1,8 @@
-from plumber.interfaces import Conditional
 from git import Repo
-from plumber.common import current_path, LOG
 import re
+
+from plumber.common import current_path, LOG
+from plumber.interfaces import Conditional
 
 DIFF = 'diff'
 PATH_SINGLE = 'path'
@@ -10,7 +11,9 @@ ACTIVE = 'active'
 TARGET = 'target'
 COMMIT = 'commit'
 REQUIRED = 'required'
+EXPRESSION = 'expression'
 UTF8 = 'utf-8'
+LABEL = 'label'
 
 
 class LocalDiffConditional(Conditional):
@@ -21,6 +24,7 @@ class LocalDiffConditional(Conditional):
     self.target_branch = None
     self.repo = None
     self.checkpoint = None
+    self.expression = None
 
   def configure(self, config, checkpoint):
     if DIFF in config:
@@ -32,14 +36,26 @@ class LocalDiffConditional(Conditional):
         self.target_branch = config[BRANCH][TARGET]
     self.repo = Repo(current_path())
     self.checkpoint = checkpoint
+    if EXPRESSION in config:
+      self.expression = config[EXPRESSION]
 
   def evaluate(self):
     if self.active_branch is not None and str(
         self.repo.active_branch) != self.active_branch:
       return False
+    if self.target_branch is not None and str(
+        self.repo.active_branch) != self.target_branch:
+      previous_branch = str(self.repo.active_branch)
+      try:
+        self.repo.git.checkout(self.target_branch)
+        return self._has_diff()
+      finally:
+        self.repo.git.checkout(previous_branch)
+    else:
+      return self._has_diff()
 
   def create_checkpoint(self):
-    pass
+    return {COMMIT: str(self.repo.head.commit)}
 
   def _get_diffs_from_current(self):
     if COMMIT not in self.checkpoint:
@@ -54,11 +70,33 @@ class LocalDiffConditional(Conditional):
     LOG.warn('Traversed all git log, checkpoint commit not found')
     return diff_paths
 
-  def has_diff(self):
+  def _has_diff(self):
     if COMMIT not in self.checkpoint:
       return True
-    detected_diffs = self._get_diffs_from_current()
+    if self.expression is not None:
+      return self._has_diff_expression()
+    else:
+      return self._has_diff_all()
 
+  def _has_diff_expression(self):
+    diffs = self._get_diffs_from_current()
+    for target_diff in self.target_diffs:
+      if LABEL in target_diff:
+        for detected_diff in diffs:
+          if PATH_SINGLE in target_diff:
+            if re.match(target_diff[PATH_SINGLE], detected_diff.a_rawpath):
+              exec('{} = True'.format(target_diff[LABEL]))
+            else:
+              exec('{} = False'.format(target_diff[LABEL]))
+    return eval(self.expression)
+
+  def _has_diff_all(self):
+    diffs = self._get_diffs_from_current()
+    for target_diff in self.target_diffs:
+      for detected_diff in diffs:
+        if PATH_SINGLE in target_diff:
+          if re.match(target_diff[PATH_SINGLE], detected_diff.a_rawpath):
+            return True
 
 
 class ShellConditional(Conditional):
