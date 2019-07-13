@@ -19,6 +19,10 @@ class IOError(PlumberError):
   pass
 
 
+class ExecutionFailure(PlumberError):
+  pass
+
+
 def current_path():
   return os.path.realpath(os.path.join(os.getcwd()))
 
@@ -55,3 +59,9 @@ def get_or_default(config, name, default):
     return name
   else:
     return default
+
+
+def evaluate_expression(expression, exp_dict):
+  for key in exp_dict:
+    exec('{} = {}'.format(key, exp_dict[key]))
+  return eval(expression)

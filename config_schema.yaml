@@ -1,9 +1,13 @@
 global:
   checkpointing:
+    unit: single/pipe
     type: kubeconfig
     config:
       name: name-of-config
       namespace: name-of-namespace
+#    type: localfile
+#    config:
+#      path: filepath
 #    type: localgit
 #    config:
 #      path: filepath
@@ -13,13 +17,13 @@ global:
 
   prehook:
     - strategy: single/repeat
-      actions:
+      steps:
         - command1
         - command2
   posthook:
     - strategy: single/repeat
       condition: always/failure/success
-      actions:
+      steps:
         - command1
         - command2
 
@@ -27,22 +31,23 @@ pipes:
   - name: Something
     enabled: true
     priority: 33
+    expression: paths and script
     conditions:
       - type: localdiff
+        name: paths
         branch:
           active: master
           target: master
         expression: path1 and path2
         diff:
           - path: regex
-            label: path1
+            name: path1
           - path: regex
-            label: path2
-      - type: shell
-        script:
-          - step: command1
-          - step: command2
+            name: path2
     actions:
-      - command1
-      - command2
-      - command3
+      batch: true
+      timeout: 500
+      steps:
+        - command1
+        - command2
+        - command3

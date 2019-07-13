@@ -1,7 +1,9 @@
 from git import Repo
 import re
+import subprocess
 
-from plumber.common import current_path, LOG
+from plumber.common import current_path, LOG, evaluate_expression, ConfigError, \
+  ExecutionFailure
 from plumber.interfaces import Conditional
 
 DIFF = 'diff'
@@ -13,7 +15,15 @@ COMMIT = 'commit'
 REQUIRED = 'required'
 EXPRESSION = 'expression'
 UTF8 = 'utf-8'
-LABEL = 'label'
+NAME = 'name'
+SCRIPT = 'script'
+STEPS = 'steps'
+BATCH = 'batch'
+TIMEOUT = 'timeout'
+STEP = 'step'
+RETURN_CODE = 'rc'
+STDOUT = 'stdout'
+STDERR = 'stderr'
 
 
 class LocalDiffConditional(Conditional):
@@ -80,15 +90,16 @@ class LocalDiffConditional(Conditional):
 
   def _has_diff_expression(self):
     diffs = self._get_diffs_from_current()
+    exp_dict = {}
     for target_diff in self.target_diffs:
-      if LABEL in target_diff:
+      if NAME in target_diff:
         for detected_diff in diffs:
           if PATH_SINGLE in target_diff:
             if re.match(target_diff[PATH_SINGLE], detected_diff.a_rawpath):
-              exec('{} = True'.format(target_diff[LABEL]))
+              exp_dict[target_diff[NAME]] = True
             else:
-              exec('{} = False'.format(target_diff[LABEL]))
-    return eval(self.expression)
+              exp_dict[target_diff[NAME]] = False
+    return evaluate_expression(self.expression, exp_dict)
 
   def _has_diff_all(self):
     diffs = self._get_diffs_from_current()
@@ -99,16 +110,45 @@ class LocalDiffConditional(Conditional):
             return True
 
 
-class ShellConditional(Conditional):
+class Executor:
 
   def __init__(self):
-    pass
+    self.steps = None
+    self.batch = False
+    self.timeout = None
 
-  def configure(self, config, checkpoint):
-    pass
+  def configure(self, config):
+    if STEPS in config:
+      self.steps = config[STEPS]
+    if BATCH in config and config[BATCH].lower() == 'true':
+      self.batch = True
+    if TIMEOUT in config:
+      self.timeout = int(config[TIMEOUT])
 
-  def create_checkpoint(self):
-    pass
+  def execute(self):
+    if self.steps is not None:
+      if self.batch:
+        script = ''.join(f'\n {l}' for l in self.steps)
+        result = self._run_script(script=script)
+        if result[RETURN_CODE] != 0:
+          raise ExecutionFailure(
+              'Step {} exited with code {}'.format(script, result[RETURN_CODE]))
+      else:
+        for step in self.steps:
+          result = self._run_script(script=step)
+          if result[RETURN_CODE] != 0:
+            raise ExecutionFailure(
+                'Step {} exited with code {}'.format(step, result[RETURN_CODE]))
 
-  def evaluate(self):
-    pass
+  def _run_script(self, script):
+    kwargs = {'shell': True}
+    if self.timeout is not None:
+      kwargs['timeout'] = self.timeout
+    try:
+      proc = subprocess.run([script], **kwargs)
+      return {
+        STEP: script,
+        RETURN_CODE: proc.returncode
+      }
+    except subprocess.TimeoutExpired:
+      raise ExecutionFailure('Step {} timed out'.format(script))

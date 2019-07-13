@@ -4,32 +4,26 @@ import re
 from kubernetes import client, config as kubeconfig
 from kubernetes.client import V1ConfigMap
 from kubernetes.client.rest import ApiException
+from git import Repo
 
-from plumber.common import ConfigError, IOError, PlumberError, get_or_default
+from plumber.common import ConfigError, IOError, PlumberError, get_or_default, \
+  current_path
 from plumber.interfaces import DataStore
 
 PATH = 'path'
 NAMESPACE = 'namespace'
 NAME = 'name'
+ON_SUCCESS = 'onsuccess'
+COMMIT = 'commit'
+TAG = 'tag'
 
 
-class YamlEnvFileStore(DataStore):
+class YamlFileStore(DataStore):
 
   def __init__(self):
     self.path = None
     import yaml as yml
     self.parser = yml
-    self.pattern = re.compile(r".*\$\{env.([A-Za-z_]*)\}(.*)")
-
-    def envex_constructor(loader, node):
-      value = loader.construct_scalar(node)
-      envVar, remainingPath = self.pattern.match(value).groups()
-      return os.getenv(envVar, '\{env.' + envVar + '\}') + remainingPath
-
-    self.parser.add_implicit_resolver('!envvar', self.pattern,
-                                      Loader=self.parser.FullLoader)
-    self.parser.add_constructor('!envvar', envex_constructor,
-                                Loader=self.parser.FullLoader)
 
   def configure(self, config):
     if PATH in config:
@@ -47,6 +41,46 @@ class YamlEnvFileStore(DataStore):
   def save_data(self, content):
     with open(self.path, 'w') as file:
       self.parser.dump(content, file)
+
+
+class YamlEnvFileStore(YamlFileStore):
+
+  def __init__(self):
+    super().__init__()
+    self.pattern = re.compile(r".*\$\{env.([A-Za-z_]*)\}(.*)")
+
+    def envex_constructor(loader, node):
+      value = loader.construct_scalar(node)
+      envVar, remainingPath = self.pattern.match(value).groups()
+      return os.getenv(envVar, '\{env.' + envVar + '\}') + remainingPath
+
+    self.parser.add_implicit_resolver('!envvar', self.pattern,
+                                      Loader=self.parser.FullLoader)
+    self.parser.add_constructor('!envvar', envex_constructor,
+                                Loader=self.parser.FullLoader)
+
+
+class YamlGitFileStore(YamlFileStore):
+
+  def __init__(self):
+    super().__init__()
+    self.commit = True
+    self.tag = False
+    self.repo = None
+
+  def configure(self, config):
+    super().configure(config)
+    if ON_SUCCESS in config:
+      if COMMIT in config[ON_SUCCESS] and not config[ON_SUCCESS][COMMIT]:
+        self.commit = False
+      if TAG in config[ON_SUCCESS] and config[ON_SUCCESS][TAG]:
+        self.tag = True
+    self.repo = Repo(path=current_path())
+
+  def save_data(self, content):
+    super().save_data(content)
+    if self.commit:
+      self.repo.git.add(self.path)
 
 
 class KubeConfigStore(DataStore):
