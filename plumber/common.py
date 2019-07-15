@@ -2,6 +2,49 @@ import os
 import logging
 
 REQUIRED = 'required'
+PATH = 'path'
+NAMESPACE = 'namespace'
+NAME = 'name'
+DIFF = 'diff'
+BRANCH = 'branch'
+ACTIVE = 'active'
+TARGET = 'target'
+COMMIT = 'commit'
+EXPRESSION = 'expression'
+UTF8 = 'utf-8'
+ID = 'id'
+SCRIPT = 'script'
+STEPS = 'steps'
+BATCH = 'batch'
+TIMEOUT = 'timeout'
+STEP = 'step'
+RETURN_CODE = 'rc'
+STDOUT = 'stdout'
+STDERR = 'stderr'
+TYPE = 'type'
+LOCALDIFF = 'localdiff'
+CONDITIONS = 'conditions'
+CONDITION = 'condition'
+ACTIONS = 'actions'
+GLOBAL = 'global'
+CHECKPOINTING = 'checkpointing'
+UNIT = 'unit'
+CONFIG = 'config'
+PREHOOK = 'prehook'
+POSTHOOK = 'posthook'
+LOCALFILE = 'localfile'
+LOCALGIT = 'localgit'
+KUBECONFIG = 'kubeconfig'
+ALWAYS = 'always'
+SUCCESS = 'success'
+FAILURE = 'failure'
+PIPES = 'pipes'
+PIPE = 'pipe'
+SCOPE = 'scope'
+DETECTED = 'detected'
+
+DEFAULT_CHECKPOINT_FILENAME = '.plumber.checkpoint.yml'
+
 LOG = logging.getLogger()
 
 
@@ -65,3 +108,11 @@ def evaluate_expression(expression, exp_dict):
   for key in exp_dict:
     exec('{} = {}'.format(key, exp_dict[key]))
   return eval(expression)
+
+
+def create_execution_log(result):
+  return 'STEP: {}\nSTDOUT: \n{}\nSTDERR: \n{}\nRC: {}\n'.format(result[STEP],
+                                                                 result[STDOUT],
+                                                                 result[STDERR],
+                                                                 result[
+                                                                   RETURN_CODE])

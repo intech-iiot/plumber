@@ -14,7 +14,7 @@ class DataStore:
     pass
 
   @abstractmethod
-  def save_data(self, content):
+  def save_data(self, content, info=None):
     pass
 
 

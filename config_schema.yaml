@@ -11,39 +11,35 @@ global:
 #    type: localgit
 #    config:
 #      path: filepath
-#      onsuccess:
-#        commit: true
-#        tag: true
 
   prehook:
-    - strategy: single/repeat
+    - scope: global/pipe
       steps:
         - command1
         - command2
   posthook:
-    - strategy: single/repeat
+    - scope: global/pipe
       condition: always/failure/success
       steps:
         - command1
         - command2
 
 pipes:
-  - name: Something
+  - id: Something
     enabled: true
-    priority: 33
     expression: paths and script
     conditions:
       - type: localdiff
-        name: paths
+        id: paths
         branch:
           active: master
           target: master
         expression: path1 and path2
         diff:
           - path: regex
-            name: path1
+            id: path1
           - path: regex
-            name: path2
+            id: path2
     actions:
       batch: true
       timeout: 500

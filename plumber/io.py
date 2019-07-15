@@ -1,21 +1,15 @@
 import os
 import re
 
+from git import Repo
 from kubernetes import client, config as kubeconfig
 from kubernetes.client import V1ConfigMap
 from kubernetes.client.rest import ApiException
-from git import Repo
 
 from plumber.common import ConfigError, IOError, PlumberError, get_or_default, \
-  current_path
+  current_path, LOG, PATH, NAME, NAMESPACE, TYPE, CONFIG, LOCALFILE, LOCALGIT, \
+  KUBECONFIG, DEFAULT_CHECKPOINT_FILENAME
 from plumber.interfaces import DataStore
-
-PATH = 'path'
-NAMESPACE = 'namespace'
-NAME = 'name'
-ON_SUCCESS = 'onsuccess'
-COMMIT = 'commit'
-TAG = 'tag'
 
 
 class YamlFileStore(DataStore):
@@ -29,7 +23,7 @@ class YamlFileStore(DataStore):
     if PATH in config:
       self.path = config[PATH]
     else:
-      raise ConfigError('path to yaml file not provided')
+      raise ConfigError('Path to yaml file not provided')
 
   def get_data(self):
     try:
@@ -38,7 +32,7 @@ class YamlFileStore(DataStore):
     except FileNotFoundError:
       return {}
 
-  def save_data(self, content):
+  def save_data(self, content, info=None):
     with open(self.path, 'w') as file:
       self.parser.dump(content, file)
 
@@ -52,6 +46,9 @@ class YamlEnvFileStore(YamlFileStore):
     def envex_constructor(loader, node):
       value = loader.construct_scalar(node)
       envVar, remainingPath = self.pattern.match(value).groups()
+      LOG.debug(
+          'Found environment variable {}, will be substituted if found'.format(
+              envVar))
       return os.getenv(envVar, '\{env.' + envVar + '\}') + remainingPath
 
     self.parser.add_implicit_resolver('!envvar', self.pattern,
@@ -64,23 +61,19 @@ class YamlGitFileStore(YamlFileStore):
 
   def __init__(self):
     super().__init__()
-    self.commit = True
-    self.tag = False
     self.repo = None
 
   def configure(self, config):
     super().configure(config)
-    if ON_SUCCESS in config:
-      if COMMIT in config[ON_SUCCESS] and not config[ON_SUCCESS][COMMIT]:
-        self.commit = False
-      if TAG in config[ON_SUCCESS] and config[ON_SUCCESS][TAG]:
-        self.tag = True
     self.repo = Repo(path=current_path())
 
-  def save_data(self, content):
-    super().save_data(content)
-    if self.commit:
-      self.repo.git.add(self.path)
+  def save_data(self, content, info=None):
+    super().save_data(content, info)
+    self.repo.git.add(self.path)
+    if info is not None:
+      self.repo.index.commit('[Plumber] {}'.format(info))
+    else:
+      LOG.error('Commit content not provided')
 
 
 class KubeConfigStore(DataStore):
@@ -89,7 +82,7 @@ class KubeConfigStore(DataStore):
     if NAME in config:
       self.configmap_name = config[NAME]
     else:
-      raise ConfigError('{} not provided in kubeconfig'.format(NAME))
+      self.configmap_name = 'plumber-checkpoint'
 
     self.namespace = get_or_default(config, NAMESPACE, 'default')
 
@@ -110,7 +103,7 @@ class KubeConfigStore(DataStore):
       if e.status == 404:
         return {}
       else:
-        raise IOError('could not read data', e)
+        raise IOError('Could not read data', e)
 
   def _cm_exists(self):
     try:
@@ -121,9 +114,9 @@ class KubeConfigStore(DataStore):
       if e.status == 404:
         return False
       else:
-        raise IOError('could not read data', e)
+        raise IOError('Could not read data', e)
 
-  def save_data(self, content):
+  def save_data(self, content, info=None):
     try:
       configmap_body = V1ConfigMap(data=content)
       if self._cm_exists():
@@ -136,4 +129,31 @@ class KubeConfigStore(DataStore):
     except PlumberError:
       raise
     except Exception as e:
-      raise IOError('could now write data', e)
+      raise IOError('Could now write data', e)
+
+
+def create_checkpoint_store(config):
+  if TYPE in config:
+    store_type = config[TYPE].lower()
+    if CONFIG in config:
+      store_config = config[CONFIG]
+    else:
+      store_config = {}
+    if store_type == LOCALFILE:
+      checkpoint_store = YamlFileStore()
+      if PATH not in store_config:
+        store_config[PATH] = DEFAULT_CHECKPOINT_FILENAME
+    elif store_type == LOCALGIT:
+      checkpoint_store = YamlGitFileStore()
+      if PATH not in store_config:
+        store_config[PATH] = DEFAULT_CHECKPOINT_FILENAME
+    elif store_type == KUBECONFIG:
+      checkpoint_store = KubeConfigStore()
+    else:
+      raise ConfigError('Unknown checkpoint type specified')
+    checkpoint_store.configure(store_config)
+  else:
+    LOG.debug('Initialized with default YAML checkpoint store')
+    checkpoint_store = YamlFileStore()
+    checkpoint_store.configure({PATH: DEFAULT_CHECKPOINT_FILENAME})
+  return checkpoint_store
