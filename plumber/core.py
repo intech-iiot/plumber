@@ -2,13 +2,15 @@ import re
 import subprocess
 
 from git import Repo
+from terminaltables import AsciiTable
 
 from plumber.common import current_path, LOG, evaluate_expression, ConfigError, \
   ExecutionFailure, DIFF, BRANCH, ACTIVE, TARGET, EXPRESSION, COMMIT, ID, PATH, \
   STEPS, BATCH, TIMEOUT, RETURN_CODE, STEP, STDOUT, STDERR, ACTIONS, TYPE, \
   LOCALDIFF, GLOBAL, CHECKPOINTING, UNIT, CONDITIONS, CONDITION, ALWAYS, \
-  FAILURE, SUCCESS, PREHOOK, SCOPE, POSTHOOK, PIPES, get_or_default, \
-  create_execution_log, PIPE, DETECTED
+  FAILURE, SUCCESS, PREHOOK, POSTHOOK, PIPES, get_or_default, \
+  create_execution_log, DETECTED, SINGLE, STATUS, UNKNOWN, EXECUTED, \
+  NOT_DETECTED, PIPE
 from plumber.interfaces import Conditional
 from plumber.io import create_checkpoint_store
 
@@ -97,9 +99,7 @@ class LocalDiffConditional(Conditional):
       for detected_diff in diffs:
         if PATH in target_diff:
           if re.match(target_diff[PATH], detected_diff.a_rawpath):
-            break
-      return False
-    return True
+            return True
 
 
 class Executor:
@@ -128,15 +128,21 @@ class Executor:
         result = self._run_script(script=script)
         self.results.append(result)
         if result[RETURN_CODE] != 0:
+          LOG.error(create_execution_log(result))
           raise ExecutionFailure(
               'Step {} exited with code {}'.format(script, result[RETURN_CODE]))
+        else:
+          LOG.info(create_execution_log(result))
       else:
         for step in self.steps:
           result = self._run_script(script=step)
           self.results.append(result)
           if result[RETURN_CODE] != 0:
+            LOG.error(create_execution_log(result))
             raise ExecutionFailure(
                 'Step {} exited with code {}'.format(step, result[RETURN_CODE]))
+          else:
+            LOG.info(create_execution_log(result))
 
   def get_results(self):
     return self.results
@@ -164,123 +170,167 @@ class Executor:
       }
 
 
-class PlumberPipe:
+class Hooked:
+
   def __init__(self):
+    self.prehooks = None
+    self.posthooks = None
+    self.posthooks_success = None
+    self.posthooks_failure = None
+
+  def configure(self, config):
+    if PREHOOK in config:
+      self.prehooks = []
+      for prehook_config in config[PREHOOK]:
+        executor = Executor()
+        executor.configure(prehook_config)
+        self.prehooks.append(executor)
+    if POSTHOOK in config:
+      self.posthooks = []
+      self.posthooks_success = []
+      self.posthooks_failure = []
+      for posthook_config in config[POSTHOOK]:
+        executor = Executor()
+        executor.configure(posthook_config)
+        if CONDITION in posthook_config:
+          condition = posthook_config[CONDITION].lower()
+          if condition == ALWAYS:
+            self.posthooks.append(executor)
+          elif condition == FAILURE:
+            self.posthooks_failure.append(executor)
+          elif condition == SUCCESS:
+            self.posthooks_success.append(executor)
+          else:
+            raise ConfigError(
+                'Invalid execution condition specified on prehook: {}'.format(
+                    condition))
+        else:
+          self.posthooks.append(executor)
+
+  def run_prehooks(self):
+    if self.prehooks is not None:
+      for hook in self.prehooks:
+        hook.execute()
+
+  def run_posthooks(self, last_result):
+    if self.posthooks is not None:
+      for hook in self.posthooks:
+        hook.execute()
+    if last_result == SUCCESS and self.posthooks_success is not None:
+      for hook in self.posthooks_success:
+        hook.execute()
+    if last_result == FAILURE and self.posthooks_failure is not None:
+      for hook in self.posthooks_failure:
+        hook.execute()
+
+  def wrap_in_hooks(self, original, finalization=None):
+    def hook_wrapper(*args, **kwargs):
+      final_result = SUCCESS
+      self.run_prehooks()
+      try:
+        return original(*args, **kwargs)
+      except Exception as e:
+        final_result = FAILURE
+        raise e
+      finally:
+        self.run_posthooks(final_result)
+        if finalization is not None:
+          finalization(final_result)
+
+    return hook_wrapper
+
+
+def _create_conditional(config, checkpoint):
+  if TYPE in config:
+    if config[TYPE].lower() == LOCALDIFF:
+      conditional = LocalDiffConditional()
+    else:
+      raise ConfigError('Invalid condition type specified')
+  else:
+    conditional = LocalDiffConditional()
+  conditional.configure(config, checkpoint)
+  return conditional
+
+
+class PlumberPipe(Hooked):
+
+  def __init__(self):
+    super(PlumberPipe, self).__init__()
+    self.config = None
     self.conditions = None
     self.actions = None
-    self.configuration = None
     self.checkpoint = None
 
-  def configure(self, configuration, checkpoint):
-    if ID not in configuration:
+  def configure(self, config, checkpoint):
+    super(PlumberPipe, self).configure(config=config)
+    if ID not in config:
       raise ConfigError('Id not specified for pipe in configuration file')
-    self.configuration = configuration
+    self.config = config
     self.checkpoint = checkpoint
-    if CONDITIONS in configuration:
+    if CONDITIONS in config:
       self.conditions = []
-      for condition_config in configuration[CONDITIONS]:
+      for condition_config in config[CONDITIONS]:
         if ID not in condition_config:
           raise ConfigError(
               'Id not specified for a condition in the configuration file')
         self.conditions.append({ID: condition_config[ID], CONDITION:
-          self._create_conditional(condition_config,
-                                   get_or_default(checkpoint,
-                                                  condition_config[ID], {}))})
-    if ACTIONS in configuration:
+          _create_conditional(condition_config,
+                              get_or_default(checkpoint, condition_config[ID],
+                                             {}))})
+    if ACTIONS in config:
       self.actions = Executor()
-      self.actions.configure(configuration[ACTIONS])
-
-  def _create_conditional(self, config, checkpoint):
-    if TYPE in config:
-      if config[TYPE].lower() == LOCALDIFF:
-        conditional = LocalDiffConditional()
-      else:
-        raise ConfigError('Invalid condition type specified')
-    else:
-      conditional = LocalDiffConditional()
-    conditional.configure(config, checkpoint)
-    return conditional
+      self.actions.configure(config[ACTIONS])
 
   def evaluate(self):
-    if EXPRESSION in self.configuration:
-      expression = self.configuration[EXPRESSION]
-      exp_vals = {}
+    if EXPRESSION in self.config:
+      exp_values = {}
       for condition in self.conditions:
-        exp_vals[condition[ID]] = condition[CONDITION].evaluate()
-      return evaluate_expression(expression, exp_vals)
+        exp_values[condition[ID]] = condition[CONDITION].evaluate()
+      return evaluate_expression(self.config[EXPRESSION], exp_values)
     else:
       for condition in self.conditions:
-        if not condition[CONDITION].evaluate():
-          return False
-      return True
+        if condition[CONDITION].evaluate():
+          return True
+      return False
+
+  def execute(self):
+    self.actions.execute()
 
   def get_new_checkpoint(self):
-    new_checkpoint = {}
     for condition in self.conditions:
-      new_checkpoint[condition[ID]] = condition[CONDITION].create_checkpoint()
-    return new_checkpoint
+      self.checkpoint[condition[ID]] = condition[
+        CONDITION].create_checkpoint()
+    return self.checkpoint
+
+  def run_prehooks(self):
+    if self.prehooks is not None:
+      LOG.info("Plumber: Running prehooks for {}".format(self.config[ID]))
+      super(PlumberPipe, self).run_prehooks()
+
+  def run_posthooks(self, last_result):
+    if self.posthooks is not None or (
+        last_result == SUCCESS and self.posthooks_success is not None) or (
+        last_result == FAILURE and self.posthooks_failure is not None):
+      LOG.info("Plumber: Running posthooks for {}".format(self.config[ID]))
+      super(PlumberPipe, self).run_posthooks(last_result)
 
 
-def initialize_hooks(prehooks, posthooks):
-  prehook_executors = []
-  posthook_executors = []
-  posthook_success_executors = []
-  posthook_failure_executors = []
-  for prehook_config in prehooks:
-    executor = Executor()
-    executor.configure(prehook_config)
-    prehook_executors.append(executor)
-  for posthook_config in posthooks:
-    executor = Executor()
-    executor.configure(posthook_config)
-    if CONDITION in posthook_config:
-      condition = posthook_config[CONDITION].lower()
-      if condition == ALWAYS:
-        posthook_executors.append(executor)
-      elif condition == FAILURE:
-        posthook_failure_executors.append(executor)
-      elif condition == SUCCESS:
-        posthook_success_executors.append(executor)
-      else:
-        raise ConfigError('Invalid execution condition specified')
-    else:
-      posthook_executors.append(executor)
-  return prehook_executors, posthook_executors, \
-         posthook_success_executors, posthook_failure_executors
-
-
-def separate_hook_configs(hooks):
-  global_hooks = []
-  pipe_hooks = []
-  for hook in hooks:
-    if SCOPE in hook and hook[SCOPE].lower() == PIPE:
-      pipe_hooks.append(hook)
-    else:
-      global_hooks.append(hook)
-  return global_hooks, pipe_hooks
-
-
-class PlumberPlanner:
+class PlumberPlanner(Hooked):
 
   def __init__(self, config):
+    super(PlumberPlanner, self).__init__()
+    super(PlumberPlanner, self).configure(config)
     self.config = config
     self.checkpoint_store = None
     self.pipes = None
-    self.checkpoint_unit = 'single'
+    self.results = None
+    self.checkpoint_unit = SINGLE
     if GLOBAL in config:
       if CHECKPOINTING in config[GLOBAL]:
         if UNIT in config[GLOBAL][CHECKPOINTING]:
           self.checkpoint_unit = config[GLOBAL][CHECKPOINTING][UNIT]
         self.checkpoint_store = create_checkpoint_store(
             config[GLOBAL][CHECKPOINTING])
-      prehooks, prehooks_pipe = separate_hook_configs(
-          get_or_default(config[GLOBAL], PREHOOK, []))
-      posthooks, posthooks_pipe = separate_hook_configs(
-          get_or_default(config[GLOBAL], POSTHOOK, []))
-    self.prehooks, self.posthooks, self.posthooks_success, self.posthooks_failure = initialize_hooks(
-        prehooks, posthooks)
-    self.prehooks_pipe, self.posthooks_pipe, self.posthooks_pipe_success, self.posthooks_pipe_failure = initialize_hooks(
-        prehooks_pipe, posthooks_pipe)
     self.current_checkpoint = self.checkpoint_store.get_data()
     if PIPES in config:
       self.pipes = []
@@ -293,68 +343,60 @@ class PlumberPlanner:
                                       {}))
         self.pipes.append(pipe)
 
-  def run_prehooks(self, pipe_scoped=False):
-    if pipe_scoped:
-      to_iterate = self.prehooks_pipe
-      if len(to_iterate) > 0:
-        LOG.info('Plumber: Executing global prehooks')
-    else:
-      to_iterate = self.prehooks
-      if len(to_iterate) > 0:
-        LOG.info('Plumber: Executing global prehooks')
-    for hook in to_iterate:
-      hook.execute()
-      for result in hook.results:
-        LOG.info(create_execution_log(result))
+  def run_prehooks(self):
+    if self.prehooks is not None:
+      LOG.info("Plumber: Running global prehooks")
+      super(PlumberPlanner, self).run_prehooks()
 
-  def run_posthooks(self, pipe_scoped=False, last_result=None):
-    if pipe_scoped:
-      to_iterate = self.posthooks_pipe
-      if len(to_iterate) > 0:
-        LOG.info('Plumber: Executing global posthooks')
-    else:
-      to_iterate = self.posthooks
-      if len(to_iterate) > 0:
-        LOG.info('Plumber: Executing global posthooks')
-    for hook in to_iterate:
-      if CONDITION in hook.config and (
-          hook.config[CONDITION] == last_result or hook.config[
-        CONDITION] == ALWAYS):
-        hook.execute()
-        for result in hook.results:
-          LOG.info(create_execution_log(result))
+  def run_posthooks(self, last_result):
+    if self.posthooks is not None or (
+        last_result == SUCCESS and self.posthooks_success is not None) or (
+        last_result == FAILURE and self.posthooks_failure is not None):
+      LOG.info("Plumber: Running global posthooks")
+      super(PlumberPlanner, self).run_posthooks(last_result)
 
-  def analyze(self):
-    reports = []
+  def get_analysis_report(self):
+    final_result = SUCCESS
     self.run_prehooks()
-    for i in range(len(self.pipes)):
-      self.run_prehooks(True)
-      pending_execution = self.pipes[i].evaluate()
-      reports.append(
-          {ID: self.pipes[i].configuration[ID], DETECTED: pending_execution})
-      self.run_posthooks(True)
-    self.run_posthooks(True)
+    try:
+      return [
+        {ID: pipe.config[ID], DETECTED: pipe.wrap_in_hooks(pipe.evaluate)()}
+        for pipe in self.pipes]
+    except Exception as e:
+      final_result = FAILURE
+      raise e
+    finally:
+      self.run_posthooks(final_result)
 
   def execute(self):
-    new_checkpoint = {}
-    error_occurred = None
-    self.run_prehooks()
-    for i in range(len(self.pipes)):
-      self.run_prehooks(True)
-      if self.pipes[i].evaluate():
-        try:
-          self.pipes[i].actions.execute()
-          new_checkpoint[self.pipes[i].configuration[ID]] = self.pipes[
-            i].get_new_checkpoint()
-        except Exception as e:
-          error_occurred = e
-        if error_occurred is not None:
-          self.run_posthooks(True, FAILURE)
-          break
-        else:
-          self.run_posthooks(True, SUCCESS)
-    if error_occurred is not None:
-      self.run_posthooks(last_result=FAILURE)
-      raise error_occurred
-    else:
-      self.run_posthooks(last_result=SUCCESS)
+    def save_new_checkpoint(current_result):
+      if current_result == SUCCESS or (
+          current_result == FAILURE and self.checkpoint_unit == PIPE):
+        self.checkpoint_store.save_data(self.current_checkpoint,
+                                        create_text_report(self.results))
+
+    def main_execution_logic():
+      self.results = [{ID: pipe.config[ID], STATUS: UNKNOWN, PIPE: pipe} for
+                      pipe in self.pipes]
+      for item in self.results:
+        def pipe_execution_logic():
+          if item[PIPE].evaluate():
+            item[STATUS] = DETECTED
+            item[PIPE].execute()
+            item[STATUS] = EXECUTED
+          else:
+            item[STATUS] = NOT_DETECTED
+          self.current_checkpoint[item[PIPE].config[ID]] = item[
+            PIPE].get_new_checkpoint()
+
+        item[PIPE].wrap_in_hooks(pipe_execution_logic)()
+      return self.results
+
+    return self.wrap_in_hooks(main_execution_logic, save_new_checkpoint)()
+
+
+def create_text_report(results):
+  table = [['SN', 'ID', 'STATUS']]
+  for i in range(len(results)):
+    table.append([i, results[i][ID], results[i][STATUS]])
+  return AsciiTable(table_data=table).table

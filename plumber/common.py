@@ -41,7 +41,12 @@ FAILURE = 'failure'
 PIPES = 'pipes'
 PIPE = 'pipe'
 SCOPE = 'scope'
+SINGLE = 'single'
 DETECTED = 'detected'
+NOT_DETECTED = 'not-detected'
+STATUS = 'status'
+UNKNOWN = 'unknown'
+EXECUTED = 'executed'
 
 DEFAULT_CHECKPOINT_FILENAME = '.plumber.checkpoint.yml'
 
