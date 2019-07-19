@@ -20,10 +20,11 @@ class YamlFileStore(DataStore):
     self.parser = yml
 
   def configure(self, config):
-    if PATH in config:
-      self.path = config[PATH]
-    else:
-      raise ConfigError('Path to yaml file not provided')
+    self.path = get_or_default(config, PATH, None, str)
+    if self.path is None:
+      raise ConfigError(
+          'Path to yaml file not provided:\n{}'.format(
+              self.parser.dump(config)))
 
   def get_data(self):
     try:
@@ -40,7 +41,7 @@ class YamlFileStore(DataStore):
 class YamlEnvFileStore(YamlFileStore):
 
   def __init__(self):
-    super().__init__()
+    super(YamlEnvFileStore, self).__init__()
     self.pattern = re.compile(r".*\$\{env.([A-Za-z_]*)\}(.*)")
 
     def envex_constructor(loader, node):
@@ -60,7 +61,7 @@ class YamlEnvFileStore(YamlFileStore):
 class YamlGitFileStore(YamlFileStore):
 
   def __init__(self):
-    super().__init__()
+    super(YamlGitFileStore, self).__init__()
     self.repo = None
 
   def configure(self, config):
@@ -72,6 +73,8 @@ class YamlGitFileStore(YamlFileStore):
     self.repo.git.add(self.path)
     if info is not None:
       self.repo.index.commit('[Plumber] {}'.format(info))
+      origin = self.repo.remote(name='origin')
+      origin.push()
     else:
       LOG.error('Commit content not provided')
 
@@ -79,12 +82,9 @@ class YamlGitFileStore(YamlFileStore):
 class KubeConfigStore(DataStore):
 
   def configure(self, config):
-    if NAME in config:
-      self.configmap_name = config[NAME]
-    else:
-      self.configmap_name = 'plumber-checkpoint'
-
-    self.namespace = get_or_default(config, NAMESPACE, 'default')
+    self.configmap_name = get_or_default(config, NAME, 'plumber-checkpoint',
+                                         str)
+    self.namespace = get_or_default(config, NAMESPACE, 'default', str)
 
     if bool(os.getenv('KUBERNETES_SERVICE_HOST')):
       kubeconfig.load_incluster_config()
@@ -132,28 +132,37 @@ class KubeConfigStore(DataStore):
       raise IOError('Could now write data', e)
 
 
-def create_checkpoint_store(config):
-  if TYPE in config:
-    store_type = config[TYPE].lower()
-    if CONFIG in config:
-      store_config = config[CONFIG]
+def create_checkpoint_store(config=None):
+  if config is not None:
+    store_type = get_or_default(config, TYPE, None, str)
+    if store_type is not None:
+      store_type = store_type.lower()
+      if CONFIG in config:
+        store_config = config[CONFIG]
+      else:
+        store_config = {}
+      if store_type == LOCALFILE:
+        checkpoint_store = YamlFileStore()
+        if PATH not in store_config:
+          store_config[PATH] = DEFAULT_CHECKPOINT_FILENAME
+      elif store_type == LOCALGIT:
+        checkpoint_store = YamlGitFileStore()
+        if PATH not in store_config:
+          store_config[PATH] = DEFAULT_CHECKPOINT_FILENAME
+      elif store_type == KUBECONFIG:
+        checkpoint_store = KubeConfigStore()
+      else:
+        raise ConfigError('Unknown checkpoint type specified')
+      checkpoint_store.configure(store_config)
     else:
-      store_config = {}
-    if store_type == LOCALFILE:
-      checkpoint_store = YamlFileStore()
-      if PATH not in store_config:
-        store_config[PATH] = DEFAULT_CHECKPOINT_FILENAME
-    elif store_type == LOCALGIT:
-      checkpoint_store = YamlGitFileStore()
-      if PATH not in store_config:
-        store_config[PATH] = DEFAULT_CHECKPOINT_FILENAME
-    elif store_type == KUBECONFIG:
-      checkpoint_store = KubeConfigStore()
-    else:
-      raise ConfigError('Unknown checkpoint type specified')
-    checkpoint_store.configure(store_config)
+      checkpoint_store = initialize_default_checkpoint_store()
   else:
-    LOG.debug('Initialized with default YAML checkpoint store')
-    checkpoint_store = YamlFileStore()
-    checkpoint_store.configure({PATH: DEFAULT_CHECKPOINT_FILENAME})
+    checkpoint_store = initialize_default_checkpoint_store()
+  return checkpoint_store
+
+
+def initialize_default_checkpoint_store():
+  LOG.debug('Initialized with default YAML checkpoint store')
+  checkpoint_store = YamlFileStore()
+  checkpoint_store.configure({PATH: DEFAULT_CHECKPOINT_FILENAME})
   return checkpoint_store

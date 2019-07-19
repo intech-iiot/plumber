@@ -102,8 +102,15 @@ from kubernetes.config.kube_config import KubeConfigLoader
 KubeConfigLoader._load_azure_token = _load_azure_token_fixed
 
 
-def get_or_default(config, name, default):
+def get_or_default(config, name, default, value_type=None,
+    raise_on_type_mismatch=True):
   if name in config:
+    if value_type is not None and type(config[name]) is not value_type:
+      if raise_on_type_mismatch:
+        raise ConfigError(
+            'The value type for {} is wrong. It should be {}'.format(name,
+                                                                     value_type))
+      return default
     return name
   else:
     return default

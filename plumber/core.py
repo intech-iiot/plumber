@@ -1,5 +1,6 @@
 import re
 import subprocess
+import yaml
 
 from git import Repo
 from terminaltables import AsciiTable
@@ -27,17 +28,19 @@ class LocalDiffConditional(Conditional):
     self.result = None
 
   def configure(self, config, checkpoint):
-    if DIFF in config:
-      self.target_diffs = config[DIFF]
-    if BRANCH in config:
-      if ACTIVE in config[BRANCH]:
-        self.active_branch = config[BRANCH][ACTIVE]
-      if TARGET in config[BRANCH]:
-        self.target_branch = config[BRANCH][TARGET]
+    self.target_diffs = get_or_default(config, DIFF, None, list)
+    if self.target_diffs is None:
+      raise ConfigError(
+          'No diffs specified in the localdiff condition:\n{}'.format(
+              yaml.dump(config)))
+
+    branches = get_or_default(config, BRANCH, None, dict)
+    if branches is not None:
+      self.active_branch = get_or_default(branches, ACTIVE, None, str)
+      self.target_branch = get_or_default(branches, TARGET, None, str)
     self.repo = Repo(current_path())
     self.checkpoint = checkpoint
-    if EXPRESSION in config:
-      self.expression = config[EXPRESSION]
+    self.expression = get_or_default(config, EXPRESSION, None, str)
 
   def evaluate(self):
     if self.result is None:
@@ -84,22 +87,33 @@ class LocalDiffConditional(Conditional):
     diffs = self._get_diffs_from_current()
     exp_dict = {}
     for target_diff in self.target_diffs:
-      if ID in target_diff:
+      if type(target_diff) is not dict:
+        raise ConfigError('Invalid diff configuration specified:\n{}'.format(
+            yaml.dump(target_diff)))
+      id = get_or_default(target_diff, ID, None, str)
+      if id is not None:
         for detected_diff in diffs:
-          if PATH in target_diff:
+          path = get_or_default(target_diff, PATH, None, str)
+          if path is not None:
             if re.match(target_diff[PATH], detected_diff.a_rawpath):
-              exp_dict[target_diff[ID]] = True
+              exp_dict[id] = True
             else:
-              exp_dict[target_diff[ID]] = False
+              exp_dict[id] = False
     return evaluate_expression(self.expression, exp_dict)
 
   def _has_diff_all(self):
     diffs = self._get_diffs_from_current()
     for target_diff in self.target_diffs:
+      if type(target_diff) is not dict:
+        raise ConfigError(
+            'Invalid diff configuration specified:\n{}'.format(
+                yaml.dump(target_diff)))
       for detected_diff in diffs:
-        if PATH in target_diff:
-          if re.match(target_diff[PATH], detected_diff.a_rawpath):
+        path = get_or_default(target_diff, PATH, None, str)
+        if path is not None:
+          if re.match(path, detected_diff.a_rawpath):
             return True
+    return False
 
 
 class Executor:
@@ -113,12 +127,15 @@ class Executor:
 
   def configure(self, config):
     self.config = config
-    if STEPS in config:
-      self.steps = config[STEPS]
-    if BATCH in config and config[BATCH].lower() == 'true':
+    self.steps = get_or_default(config, STEPS, None, list)
+    if self.steps is None:
+      raise ConfigError(
+          'No steps specified to execute:\n{}'.format(yaml.dump(config)))
+    if get_or_default(config, BATCH, 'false', str).lower() == 'true':
       self.batch = True
-    if TIMEOUT in config:
-      self.timeout = int(config[TIMEOUT])
+    timeout = get_or_default(config, TIMEOUT, None, int)
+    if timeout is not None:
+      self.timeout = timeout
     self.results = []
 
   def execute(self):
@@ -130,7 +147,8 @@ class Executor:
         if result[RETURN_CODE] != 0:
           LOG.error(create_execution_log(result))
           raise ExecutionFailure(
-              'Step {} exited with code {}'.format(script, result[RETURN_CODE]))
+              'Step \n{} exited with code {}'.format(script,
+                                                     result[RETURN_CODE]))
         else:
           LOG.info(create_execution_log(result))
       else:
@@ -179,33 +197,33 @@ class Hooked:
     self.posthooks_failure = None
 
   def configure(self, config):
-    if PREHOOK in config:
+    prehooks = get_or_default(config, PREHOOK, None, dict)
+    if prehooks is not None:
       self.prehooks = []
-      for prehook_config in config[PREHOOK]:
+      for prehook_config in prehooks:
         executor = Executor()
         executor.configure(prehook_config)
         self.prehooks.append(executor)
-    if POSTHOOK in config:
+    posthooks = get_or_default(config, POSTHOOK, None, dict)
+    if posthooks is not None:
       self.posthooks = []
       self.posthooks_success = []
       self.posthooks_failure = []
-      for posthook_config in config[POSTHOOK]:
+      for posthook_config in posthooks:
         executor = Executor()
         executor.configure(posthook_config)
-        if CONDITION in posthook_config:
-          condition = posthook_config[CONDITION].lower()
-          if condition == ALWAYS:
-            self.posthooks.append(executor)
-          elif condition == FAILURE:
-            self.posthooks_failure.append(executor)
-          elif condition == SUCCESS:
-            self.posthooks_success.append(executor)
-          else:
-            raise ConfigError(
-                'Invalid execution condition specified on prehook: {}'.format(
-                    condition))
-        else:
+        condition = get_or_default(posthook_config, CONDITION, ALWAYS,
+                                   str).lower()
+        if condition == ALWAYS:
           self.posthooks.append(executor)
+        elif condition == FAILURE:
+          self.posthooks_failure.append(executor)
+        elif condition == SUCCESS:
+          self.posthooks_success.append(executor)
+        else:
+          raise ConfigError(
+              'Invalid execution condition specified on prehook: {}'.format(
+                  condition))
 
   def run_prehooks(self):
     if self.prehooks is not None:
@@ -241,11 +259,12 @@ class Hooked:
 
 
 def _create_conditional(config, checkpoint):
-  if TYPE in config:
+  if TYPE in config and type(config[TYPE]) is str:
     if config[TYPE].lower() == LOCALDIFF:
       conditional = LocalDiffConditional()
     else:
-      raise ConfigError('Invalid condition type specified')
+      raise ConfigError(
+          'Invalid condition type specified:\n{}'.format(yaml.dump(config)))
   else:
     conditional = LocalDiffConditional()
   conditional.configure(config, checkpoint)
@@ -263,30 +282,40 @@ class PlumberPipe(Hooked):
 
   def configure(self, config, checkpoint):
     super(PlumberPipe, self).configure(config=config)
-    if ID not in config:
-      raise ConfigError('Id not specified for pipe in configuration file')
+    id = get_or_default(config, ID, None, str)
+    if id is None:
+      raise ConfigError(
+          'Id not specified for pipe in configuration file:\n{}'.format(
+              yaml.dump(config)))
     self.config = config
     self.checkpoint = checkpoint
-    if CONDITIONS in config:
+    conditions = get_or_default(config, CONDITIONS, None, list)
+    if conditions is not None:
       self.conditions = []
-      for condition_config in config[CONDITIONS]:
-        if ID not in condition_config:
+      for condition_config in conditions:
+        id = get_or_default(condition_config, ID, None, str)
+        if id is None:
           raise ConfigError(
-              'Id not specified for a condition in the configuration file')
-        self.conditions.append({ID: condition_config[ID], CONDITION:
-          _create_conditional(condition_config,
-                              get_or_default(checkpoint, condition_config[ID],
-                                             {}))})
-    if ACTIONS in config:
+              'Id not specified for condition in the configuration file:\n{}'.format(
+                  yaml.dump(condition_config)))
+        self.conditions.append({ID: id,
+                                CONDITION: _create_conditional(condition_config,
+                                                               get_or_default(
+                                                                   checkpoint,
+                                                                   id,
+                                                                   {}))})
+    actions = get_or_default(config, ACTIONS, None, dict)
+    if actions is not None:
       self.actions = Executor()
-      self.actions.configure(config[ACTIONS])
+      self.actions.configure(actions)
 
   def evaluate(self):
-    if EXPRESSION in self.config:
+    expression = get_or_default(self.config, EXPRESSION, None, str)
+    if expression is not None:
       exp_values = {}
       for condition in self.conditions:
         exp_values[condition[ID]] = condition[CONDITION].evaluate()
-      return evaluate_expression(self.config[EXPRESSION], exp_values)
+      return evaluate_expression(expression, exp_values)
     else:
       for condition in self.conditions:
         if condition[CONDITION].evaluate():
@@ -325,12 +354,20 @@ class PlumberPlanner(Hooked):
     self.pipes = None
     self.results = None
     self.checkpoint_unit = SINGLE
-    if GLOBAL in config:
-      if CHECKPOINTING in config[GLOBAL]:
-        if UNIT in config[GLOBAL][CHECKPOINTING]:
-          self.checkpoint_unit = config[GLOBAL][CHECKPOINTING][UNIT]
-        self.checkpoint_store = create_checkpoint_store(
-            config[GLOBAL][CHECKPOINTING])
+    global_config = get_or_default(config, GLOBAL, None, dict)
+    if global_config is not None:
+      checkpointing_config = get_or_default(global_config, CHECKPOINTING, None,
+                                            dict)
+      if checkpointing_config is not None:
+        checkpoint_unit = get_or_default(checkpointing_config, UNIT, 'single',
+                                         str)
+        if checkpoint_unit is not None:
+          self.checkpoint_unit = checkpoint_unit.lower()
+        self.checkpoint_store = create_checkpoint_store(checkpointing_config)
+      else:
+        self.checkpoint_store = create_checkpoint_store()
+    else:
+      self.checkpoint_store = create_checkpoint_store()
     self.current_checkpoint = self.checkpoint_store.get_data()
     if PIPES in config:
       self.pipes = []
