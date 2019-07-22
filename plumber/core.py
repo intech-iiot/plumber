@@ -70,7 +70,7 @@ class LocalDiffConditional(Conditional):
 
   def create_checkpoint(self):
     LOG.info(
-        '[{}] creating new checkpoint {}'.format(self.id, self.new_checkpoint))
+        '[{}] New checkpoint {}'.format(self.id, self.new_checkpoint))
     return {COMMIT: self.new_checkpoint}
 
   def _get_diffs_from_current(self):
@@ -90,9 +90,8 @@ class LocalDiffConditional(Conditional):
           '[{}] traversed all git log, checkpoint commit not found'.format(
               self.id))
     LOG.info(
-        '[{}] detected diffs since last run:\n{}'.format(self.id,
-                                                         [i for i in
-                                                          diff_paths]))
+        '[{}] detected diffs since last run:\n{}\n'.format(self.id, ''.join(
+            f'\n\t {l}' for l in diff_paths)))
     return diff_paths
 
   def _has_diff(self):
@@ -227,14 +226,14 @@ class Hooked:
     self.posthooks_failure = None
 
   def configure(self, config):
-    prehooks = get_or_default(config, PREHOOK, None, dict)
+    prehooks = get_or_default(config, PREHOOK, None, list)
     if prehooks is not None:
       self.prehooks = []
       for prehook_config in prehooks:
         executor = Executor()
         executor.configure(prehook_config)
         self.prehooks.append(executor)
-    posthooks = get_or_default(config, POSTHOOK, None, dict)
+    posthooks = get_or_default(config, POSTHOOK, None, list)
     if posthooks is not None:
       self.posthooks = []
       self.posthooks_success = []
@@ -378,7 +377,6 @@ class PlumberPlanner(Hooked):
 
   def __init__(self, config):
     super(PlumberPlanner, self).__init__()
-    super(PlumberPlanner, self).configure(config)
     self.config = config
     self.checkpoint_store = None
     self.pipes = None
@@ -386,6 +384,7 @@ class PlumberPlanner(Hooked):
     self.checkpoint_unit = SINGLE
     global_config = get_or_default(config, GLOBAL, None, dict)
     if global_config is not None:
+      super(PlumberPlanner, self).configure(global_config)
       checkpointing_config = get_or_default(global_config, CHECKPOINTING, None,
                                             dict)
       if checkpointing_config is not None:

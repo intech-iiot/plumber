@@ -116,8 +116,8 @@ def get_or_default(config, name, default, value_type=None,
     if value_type is not None and type(config[name]) is not value_type:
       if raise_on_type_mismatch:
         raise ConfigError(
-            'The value type for {} is wrong. It should be {}'.format(name,
-                                                                     value_type))
+            'The value type for {} is {}. It should be {}'.format(name, type(
+                config[name]), value_type))
       return default
     return config[name]
   else:
@@ -132,7 +132,11 @@ def evaluate_expression(expression, exp_dict):
 
 def create_execution_log(result):
   return 'STEP: {}\nSTDOUT: \n{}\nSTDERR: \n{}\nRC: {}\n'.format(result[STEP],
-                                                                 result[STDOUT],
-                                                                 result[STDERR],
+                                                                 result[
+                                                                   STDOUT].decode(
+                                                                   UTF8),
+                                                                 result[
+                                                                   STDERR].decode(
+                                                                   UTF8),
                                                                  result[
                                                                    RETURN_CODE])
