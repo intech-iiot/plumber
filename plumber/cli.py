@@ -36,40 +36,46 @@ def cli():
 @click.option('--cfg', '-c', help='Path tho plumber config file')
 @click.option('--verbose', '-v', help='Set the verbosity level', count=True)
 def get_report(cfg, verbose):
-  set_log_level(verbose)
-  if cfg is None:
-    cfg = DEFAULT_CONFIG_PATH
-  config_store = YamlEnvFileStore()
-  config_store.configure({PATH: cfg})
-  config = config_store.get_data()
-  if config is None or len(config) == 0:
-    plumber.common.LOG.error('Configuration not found')
-    return
-  planner = PlumberPlanner(config)
-  report = planner.get_analysis_report()
-  click.echo(create_initial_report(report))
+  try:
+    set_log_level(verbose)
+    if cfg is None:
+      cfg = DEFAULT_CONFIG_PATH
+    config_store = YamlEnvFileStore()
+    config_store.configure({PATH: cfg})
+    config = config_store.get_data()
+    if config is None or len(config) == 0:
+      plumber.common.LOG.error('Configuration not found')
+      return
+    planner = PlumberPlanner(config)
+    report = planner.get_analysis_report()
+    click.echo(create_initial_report(report))
+  except Exception as e:
+    plumber.common.LOG.error(''.join(f'\n{l}' for l in e.args))
 
 
 @click.command('go')
 @click.option('--cfg', '-c', help='Path tho plumber config file')
 @click.option('--verbose', '-v', help='Set the verbosity level', count=True)
 def execute(cfg, verbose):
-  set_log_level(verbose)
-  if cfg is None:
-    cfg = DEFAULT_CONFIG_PATH
-  config_store = YamlEnvFileStore()
-  config_store.configure({PATH: cfg})
-  config = config_store.get_data()
-  if config is None or len(config) == 0:
-    plumber.common.LOG.error('Configuration not found')
-    return
-  planner = PlumberPlanner(config)
-  results = None
   try:
-    results = planner.execute()
-  finally:
-    if results is not None:
-      click.echo(create_execution_report(results))
+    set_log_level(verbose)
+    if cfg is None:
+      cfg = DEFAULT_CONFIG_PATH
+    config_store = YamlEnvFileStore()
+    config_store.configure({PATH: cfg})
+    config = config_store.get_data()
+    if config is None or len(config) == 0:
+      plumber.common.LOG.error('Configuration not found')
+      return
+    planner = PlumberPlanner(config)
+    results = None
+    try:
+      results = planner.execute()
+    finally:
+      if results is not None:
+        click.echo(create_execution_report(results))
+  except Exception as e:
+    plumber.common.LOG.error(''.join(f'\n{l}' for l in e.args))
 
 
 cli.add_command(get_report)
