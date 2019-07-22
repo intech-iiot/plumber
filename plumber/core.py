@@ -11,7 +11,7 @@ from plumber.common import current_path, LOG, evaluate_expression, ConfigError, 
   LOCALDIFF, GLOBAL, CHECKPOINTING, UNIT, CONDITIONS, CONDITION, ALWAYS, \
   FAILURE, SUCCESS, PREHOOK, POSTHOOK, PIPES, get_or_default, \
   create_execution_log, DETECTED, SINGLE, STATUS, UNKNOWN, EXECUTED, \
-  NOT_DETECTED, PIPE
+  NOT_DETECTED, PIPE, FAILED, GITMOJI, UTF8
 from plumber.interfaces import Conditional
 from plumber.io import create_checkpoint_store
 
@@ -26,8 +26,12 @@ class LocalDiffConditional(Conditional):
     self.checkpoint = None
     self.expression = None
     self.result = None
+    self.id = None
 
   def configure(self, config, checkpoint):
+    self.id = get_or_default(config, ID, None, str)
+    if self.id is None:
+      raise ConfigError('id not specified:\n{}'.format(yaml.dump(config)))
     self.target_diffs = get_or_default(config, DIFF, None, list)
     if self.target_diffs is None:
       raise ConfigError(
@@ -39,6 +43,7 @@ class LocalDiffConditional(Conditional):
       self.active_branch = get_or_default(branches, ACTIVE, None, str)
       self.target_branch = get_or_default(branches, TARGET, None, str)
     self.repo = Repo(current_path())
+    self.new_checkpoint = str(self.repo.head.commit)
     self.checkpoint = checkpoint
     self.expression = get_or_default(config, EXPRESSION, None, str)
 
@@ -46,11 +51,15 @@ class LocalDiffConditional(Conditional):
     if self.result is None:
       if self.active_branch is not None and str(
           self.repo.active_branch) != self.active_branch:
+        LOG.info(
+            '[{}] Not on active branch, conditional disabled'.format(self.id))
         self.result = False
       if self.target_branch is not None and str(
           self.repo.active_branch) != self.target_branch:
         previous_branch = str(self.repo.active_branch)
         try:
+          LOG.info('[{}] checking out target branch {}'.format(self.id,
+                                                               self.target_branch))
           self.repo.git.checkout(self.target_branch)
           self.result = self._has_diff()
         finally:
@@ -60,27 +69,42 @@ class LocalDiffConditional(Conditional):
     return self.result
 
   def create_checkpoint(self):
-    return {COMMIT: str(self.repo.head.commit)}
+    LOG.info(
+        '[{}] creating new checkpoint {}'.format(self.id, self.new_checkpoint))
+    return {COMMIT: self.new_checkpoint}
 
   def _get_diffs_from_current(self):
     if COMMIT not in self.checkpoint:
       return None
     diff_paths = set()
+    commit_found = False
     for commit in self.repo.iter_commits():
       diffs = self.repo.head.commit.diff(commit)
       for diff in diffs:
-        diff_paths.add(diff)
-      if str(commit) == self.checkpoint[COMMIT]:
+        diff_paths.add(diff.a_rawpath.decode(UTF8))
+      commit_found = str(commit) == self.checkpoint[COMMIT]
+      if commit_found:
         break
-    LOG.warn('Traversed all git log, checkpoint commit not found')
+    if not commit_found:
+      LOG.warn(
+          '[{}] traversed all git log, checkpoint commit not found'.format(
+              self.id))
+    LOG.info(
+        '[{}] detected diffs since last run:\n{}'.format(self.id,
+                                                         [i for i in
+                                                          diff_paths]))
     return diff_paths
 
   def _has_diff(self):
     if COMMIT not in self.checkpoint:
       return True
     if self.expression is not None:
+      LOG.info(
+          '[{}] detecting through expression evaluation: {}'.format(self.id,
+                                                                    self.expression))
       return self._has_diff_expression()
     else:
+      LOG.info('[{}] detecting any of the diffs'.format(self.id))
       return self._has_diff_all()
 
   def _has_diff_expression(self):
@@ -95,7 +119,11 @@ class LocalDiffConditional(Conditional):
         for detected_diff in diffs:
           path = get_or_default(target_diff, PATH, None, str)
           if path is not None:
-            if re.match(target_diff[PATH], detected_diff.a_rawpath):
+            if re.match(target_diff[PATH], detected_diff):
+              LOG.info('[{}] path pattern {} matches {}'.format(self.id,
+                                                                target_diff[
+                                                                  PATH],
+                                                                detected_diff))
               exp_dict[id] = True
             else:
               exp_dict[id] = False
@@ -111,7 +139,9 @@ class LocalDiffConditional(Conditional):
       for detected_diff in diffs:
         path = get_or_default(target_diff, PATH, None, str)
         if path is not None:
-          if re.match(path, detected_diff.a_rawpath):
+          if re.match(path, detected_diff):
+            LOG.info('[{}] path pattern {} matches {}'.format(self.id, path,
+                                                              detected_diff))
             return True
     return False
 
@@ -393,24 +423,21 @@ class PlumberPlanner(Hooked):
       super(PlumberPlanner, self).run_posthooks(last_result)
 
   def get_analysis_report(self):
-    final_result = SUCCESS
-    self.run_prehooks()
-    try:
+    def get_report():
       return [
         {ID: pipe.config[ID], DETECTED: pipe.wrap_in_hooks(pipe.evaluate)()}
         for pipe in self.pipes]
-    except Exception as e:
-      final_result = FAILURE
-      raise e
-    finally:
-      self.run_posthooks(final_result)
+
+    return self.wrap_in_hooks(get_report)()
 
   def execute(self):
     def save_new_checkpoint(current_result):
-      if current_result == SUCCESS or (
+      if contains_activity(self.results) and current_result == SUCCESS or (
           current_result == FAILURE and self.checkpoint_unit == PIPE):
+        LOG.info('Creating and persisting new checkpoint')
         self.checkpoint_store.save_data(self.current_checkpoint,
-                                        create_text_report(self.results))
+                                        create_execution_report(self.results,
+                                                                gitmojis=True))
 
     def main_execution_logic():
       self.results = [{ID: pipe.config[ID], STATUS: UNKNOWN, PIPE: pipe} for
@@ -423,17 +450,39 @@ class PlumberPlanner(Hooked):
             item[STATUS] = EXECUTED
           else:
             item[STATUS] = NOT_DETECTED
-          self.current_checkpoint[item[PIPE].config[ID]] = item[
-            PIPE].get_new_checkpoint()
+          if item[STATUS] != NOT_DETECTED:
+            self.current_checkpoint[item[PIPE].config[ID]] = item[
+              PIPE].get_new_checkpoint()
 
-        item[PIPE].wrap_in_hooks(pipe_execution_logic)()
+        try:
+          item[PIPE].wrap_in_hooks(pipe_execution_logic)()
+        except Exception as e:
+          item[STATUS] = FAILED
+          raise e
       return self.results
 
     return self.wrap_in_hooks(main_execution_logic, save_new_checkpoint)()
 
 
-def create_text_report(results):
+def create_execution_report(results, gitmojis=False):
   table = [['SN', 'ID', 'STATUS']]
   for i in range(len(results)):
-    table.append([i, results[i][ID], results[i][STATUS]])
+    status = results[i][STATUS]
+    if gitmojis:
+      status = '{} {}'.format(status, GITMOJI[status])
+    table.append([i + 1, results[i][ID], status])
   return AsciiTable(table_data=table).table
+
+
+def create_initial_report(report):
+  table = [['SN', 'ID', 'CHANGE DETECTED']]
+  for i in range(len(report)):
+    table.append([i + 1, report[i][ID], report[i][DETECTED]])
+  return AsciiTable(table_data=table).table
+
+
+def contains_activity(results):
+  for result in results:
+    if result[STATUS] != NOT_DETECTED:
+      return True
+  return False

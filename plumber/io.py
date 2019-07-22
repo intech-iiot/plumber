@@ -30,7 +30,7 @@ class YamlFileStore(DataStore):
     try:
       with open(self.path) as file:
         return self.parser.full_load(file)
-    except FileNotFoundError:
+    except FileNotFoundError as e:
       return {}
 
   def save_data(self, content, info=None):
@@ -72,7 +72,8 @@ class YamlGitFileStore(YamlFileStore):
     super().save_data(content, info)
     self.repo.git.add(self.path)
     if info is not None:
-      self.repo.index.commit('[Plumber] {}'.format(info))
+      self.repo.index.commit(
+        ':wrench::construction_worker: [Plumber]\n{}'.format(info))
       origin = self.repo.remote(name='origin')
       origin.push()
     else:

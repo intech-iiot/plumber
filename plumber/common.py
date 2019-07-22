@@ -43,12 +43,20 @@ PIPE = 'pipe'
 SCOPE = 'scope'
 SINGLE = 'single'
 DETECTED = 'detected'
-NOT_DETECTED = 'not-detected'
+NOT_DETECTED = 'not detected'
+FAILED = 'failed'
 STATUS = 'status'
 UNKNOWN = 'unknown'
 EXECUTED = 'executed'
 
 DEFAULT_CHECKPOINT_FILENAME = '.plumber.checkpoint.yml'
+
+GITMOJI = {
+  DETECTED: ':heavy_plus_sign:',
+  NOT_DETECTED: ':heavy_minus_sign:',
+  EXECUTED: ':white_check_mark:',
+  FAILED: ':boom:'
+}
 
 LOG = logging.getLogger()
 
@@ -111,7 +119,7 @@ def get_or_default(config, name, default, value_type=None,
             'The value type for {} is wrong. It should be {}'.format(name,
                                                                      value_type))
       return default
-    return name
+    return config[name]
   else:
     return default
 
