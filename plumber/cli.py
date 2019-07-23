@@ -34,7 +34,7 @@ def set_log_level(level):
 def print_banner():
   click.echo(wrap_in_dividers(
       '{}{}\n{}'.format(pyfiglet.figlet_format('Plumber', font='slant'),
-                          'The CD\CI tool for everything', 'Initiating...')))
+                        'The CD\CI tool for everything', 'Initiating...')))
 
 
 @click.group(name='plumber')
@@ -46,10 +46,11 @@ def cli():
   pass
 
 
-@click.command('report')
+@click.command('detect')
 @click.option('--cfg', '-c', help='Path tho plumber config file')
 @click.option('--verbose', '-v', help='Set the verbosity level', count=True)
 def get_report(cfg, verbose):
+  """Detect changes and print out a report"""
   try:
     set_log_level(verbose)
     print_banner()
@@ -63,6 +64,7 @@ def get_report(cfg, verbose):
       return
     planner = PlumberPlanner(config)
     report = planner.get_analysis_report()
+    click.echo(wrap_in_dividers('Final Report'))
     click.echo(create_initial_report(report))
   except Exception as e:
     plumber.common.LOG.error(''.join(f'\n{l}' for l in e.args))
@@ -72,6 +74,7 @@ def get_report(cfg, verbose):
 @click.option('--cfg', '-c', help='Path tho plumber config file')
 @click.option('--verbose', '-v', help='Set the verbosity level', count=True)
 def execute(cfg, verbose):
+  """Detect changes and run CD/CI steps"""
   try:
     set_log_level(verbose)
     print_banner()
@@ -89,6 +92,7 @@ def execute(cfg, verbose):
       results = planner.execute()
     finally:
       if results is not None:
+        click.echo(wrap_in_dividers('Final Report'))
         click.echo(create_execution_report(results))
   except Exception as e:
     plumber.common.LOG.error(''.join(f'\n{l}' for l in e.args))
