@@ -1,6 +1,7 @@
 import re
 import subprocess
 import yaml
+import plumber
 
 from git import Repo
 from terminaltables import AsciiTable
@@ -11,7 +12,7 @@ from plumber.common import current_path, LOG, evaluate_expression, ConfigError, 
   LOCALDIFF, GLOBAL, CHECKPOINTING, UNIT, CONDITIONS, CONDITION, ALWAYS, \
   FAILURE, SUCCESS, PREHOOK, POSTHOOK, PIPES, get_or_default, \
   create_execution_log, DETECTED, SINGLE, STATUS, UNKNOWN, EXECUTED, \
-  NOT_DETECTED, PIPE, FAILED, GITMOJI, UTF8
+  NOT_DETECTED, PIPE, FAILED, GITMOJI, UTF8, PLUMBER_LOGS
 from plumber.interfaces import Conditional
 from plumber.io import create_checkpoint_store
 
@@ -179,7 +180,7 @@ class Executor:
               'Step \n{} exited with code {}'.format(script,
                                                      result[RETURN_CODE]))
         else:
-          LOG.info(create_execution_log(result))
+          LOG.log(PLUMBER_LOGS, create_execution_log(result))
       else:
         for step in self.steps:
           result = self._run_script(script=step)
@@ -189,7 +190,7 @@ class Executor:
             raise ExecutionFailure(
                 'Step {} exited with code {}'.format(step, result[RETURN_CODE]))
           else:
-            LOG.info(create_execution_log(result))
+            LOG.log(PLUMBER_LOGS, create_execution_log(result))
 
   def get_results(self):
     return self.results
@@ -362,14 +363,18 @@ class PlumberPipe(Hooked):
 
   def run_prehooks(self):
     if self.prehooks is not None:
-      LOG.info("Plumber: Running prehooks for {}".format(self.config[ID]))
+      LOG.log(PLUMBER_LOGS, wrap_in_dividers(
+          "Running prehooks for {}".format(self.config[ID]),
+          divider_char='-'))
       super(PlumberPipe, self).run_prehooks()
 
   def run_posthooks(self, last_result):
     if self.posthooks is not None or (
         last_result == SUCCESS and self.posthooks_success is not None) or (
         last_result == FAILURE and self.posthooks_failure is not None):
-      LOG.info("Plumber: Running posthooks for {}".format(self.config[ID]))
+      LOG.log(PLUMBER_LOGS, wrap_in_dividers(
+          "Running posthooks for {}".format(self.config[ID]),
+          divider_char='-'))
       super(PlumberPipe, self).run_posthooks(last_result)
 
 
@@ -411,14 +416,18 @@ class PlumberPlanner(Hooked):
 
   def run_prehooks(self):
     if self.prehooks is not None:
-      LOG.info("Plumber: Running global prehooks")
+      LOG.log(PLUMBER_LOGS,
+              wrap_in_dividers("Running global prehooks",
+                               divider_char='-'))
       super(PlumberPlanner, self).run_prehooks()
 
   def run_posthooks(self, last_result):
     if self.posthooks is not None or (
         last_result == SUCCESS and self.posthooks_success is not None) or (
         last_result == FAILURE and self.posthooks_failure is not None):
-      LOG.info("Plumber: Running global posthooks")
+      LOG.log(PLUMBER_LOGS,
+              wrap_in_dividers("Running global posthooks",
+                               divider_char='-'))
       super(PlumberPlanner, self).run_posthooks(last_result)
 
   def get_analysis_report(self):
@@ -430,10 +439,12 @@ class PlumberPlanner(Hooked):
     return self.wrap_in_hooks(get_report)()
 
   def execute(self):
+
     def save_new_checkpoint(current_result):
+      LOG.log(PLUMBER_LOGS, wrap_in_dividers('Plumber: Checkpointing'))
       if contains_activity(self.results) and current_result == SUCCESS or (
           current_result == FAILURE and self.checkpoint_unit == PIPE):
-        LOG.info('Creating and persisting new checkpoint')
+        LOG.log(PLUMBER_LOGS, 'Changes performed, persisting a new checkpoint')
         self.checkpoint_store.save_data(self.current_checkpoint,
                                         create_execution_report(self.results,
                                                                 gitmojis=True))
@@ -442,12 +453,21 @@ class PlumberPlanner(Hooked):
       self.results = [{ID: pipe.config[ID], STATUS: UNKNOWN, PIPE: pipe} for
                       pipe in self.pipes]
       for item in self.results:
+        LOG.log(PLUMBER_LOGS, wrap_in_dividers(
+            'Plumber: Pipe evaluation for [{}]'.format(item[ID])))
+
         def pipe_execution_logic():
           if item[PIPE].evaluate():
             item[STATUS] = DETECTED
+            LOG.log(PLUMBER_LOGS,
+                    'Detected change on pipe {}, starting execution'.format(
+                        item[ID]))
             item[PIPE].execute()
+            LOG.log(PLUMBER_LOGS, 'Steps for pipe {} executed'.format(item[ID]))
             item[STATUS] = EXECUTED
           else:
+            LOG.log(PLUMBER_LOGS,
+                    'No change detected on pipe {}. Moving on'.format(item[ID]))
             item[STATUS] = NOT_DETECTED
           if item[STATUS] != NOT_DETECTED:
             self.current_checkpoint[item[PIPE].config[ID]] = item[
@@ -485,3 +505,12 @@ def contains_activity(results):
     if result[STATUS] != NOT_DETECTED:
       return True
   return False
+
+
+def wrap_in_dividers(message, divider_char='=', breaks=1):
+  breaks = ''.join('\n' for _ in range(breaks))
+  divider_length = plumber.common.DEFAULT_DIVIDER_LENGTH
+  if divider_length is None:
+    divider_length = len(message)
+  divider = ''.join(f'{divider_char}' for _ in range(divider_length))
+  return '{}\n{}\n{}\n{}\n{}'.format(breaks, divider, message, divider, breaks)

@@ -58,6 +58,9 @@ GITMOJI = {
   FAILED: ':boom:'
 }
 
+DEFAULT_DIVIDER_LENGTH = None
+PLUMBER_LOGS = 25
+
 LOG = logging.getLogger()
 
 
@@ -134,9 +137,9 @@ def create_execution_log(result):
   return 'STEP: {}\nSTDOUT: \n{}\nSTDERR: \n{}\nRC: {}\n'.format(result[STEP],
                                                                  result[
                                                                    STDOUT].decode(
-                                                                   UTF8),
+                                                                     UTF8),
                                                                  result[
                                                                    STDERR].decode(
-                                                                   UTF8),
+                                                                     UTF8),
                                                                  result[
                                                                    RETURN_CODE])

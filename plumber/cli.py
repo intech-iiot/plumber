@@ -1,26 +1,40 @@
 import click
 import click_log
+import plumber
 import plumber.common
 from plumber.core import PlumberPlanner, create_execution_report, \
-  create_initial_report
+  create_initial_report, wrap_in_dividers
 from plumber.io import YamlEnvFileStore
-from plumber.common import PATH
+from plumber.common import PATH, PLUMBER_LOGS
 import logging
+import pyfiglet
 
 DEFAULT_CONFIG_PATH = 'plumber.yml'
 
 click_log.basic_config(plumber.common.LOG)
 
+import shutil
+
+plumber.common.DEFAULT_DIVIDER_LENGTH = shutil.get_terminal_size().columns
+
 
 def set_log_level(level):
   if level == 2:
-    plumber.common.LOG.setLevel(logging.WARN)
+    plumber.common.LOG.setLevel(PLUMBER_LOGS)
   elif level == 3:
+    plumber.common.LOG.setLevel(logging.WARN)
+  elif level == 4:
     plumber.common.LOG.setLevel(logging.INFO)
-  elif level > 3:
+  elif level > 4:
     plumber.common.LOG.setLevel(logging.DEBUG)
   else:
     plumber.common.LOG.setLevel(logging.ERROR)
+
+
+def print_banner():
+  click.echo(wrap_in_dividers(
+      '{}{}\n{}'.format(pyfiglet.figlet_format('Plumber', font='slant'),
+                          'The CD\CI tool for everything', 'Initiating...')))
 
 
 @click.group(name='plumber')
@@ -38,6 +52,7 @@ def cli():
 def get_report(cfg, verbose):
   try:
     set_log_level(verbose)
+    print_banner()
     if cfg is None:
       cfg = DEFAULT_CONFIG_PATH
     config_store = YamlEnvFileStore()
@@ -59,6 +74,7 @@ def get_report(cfg, verbose):
 def execute(cfg, verbose):
   try:
     set_log_level(verbose)
+    print_banner()
     if cfg is None:
       cfg = DEFAULT_CONFIG_PATH
     config_store = YamlEnvFileStore()
