@@ -161,8 +161,7 @@ class Executor:
     if self.steps is None:
       raise ConfigError(
           'No steps specified to execute:\n{}'.format(yaml.dump(config)))
-    if get_or_default(config, BATCH, 'false', str).lower() == 'true':
-      self.batch = True
+    self.batch = get_or_default(config, BATCH, False, bool)
     timeout = get_or_default(config, TIMEOUT, None, int)
     if timeout is not None:
       self.timeout = timeout
@@ -322,12 +321,19 @@ class PlumberPipe(Hooked):
     conditions = get_or_default(config, CONDITIONS, None, list)
     if conditions is not None:
       self.conditions = []
+      declared_conditions = set()
       for condition_config in conditions:
         id = get_or_default(condition_config, ID, None, str)
         if id is None:
           raise ConfigError(
               'Id not specified for condition in the configuration file:\n{}'.format(
                   yaml.dump(condition_config)))
+        if id in declared_conditions:
+          raise ConfigError(
+              'Multiple conditions specified with the id: {}\n'.format(id,
+                                                                       yaml.dump(
+                                                                           condition_config)))
+        declared_conditions.add(id)
         self.conditions.append({ID: id,
                                 CONDITION: _create_conditional(condition_config,
                                                                get_or_default(
@@ -405,9 +411,14 @@ class PlumberPlanner(Hooked):
     self.current_checkpoint = self.checkpoint_store.get_data()
     if PIPES in config:
       self.pipes = []
+      declared_pipe_ids = set()
       for pipe_config in config[PIPES]:
         if ID not in pipe_config:
           raise ConfigError('Id not specified for pipe in configuration file')
+        if pipe_config[ID] in declared_pipe_ids:
+          raise ConfigError(
+              'Multiple pipes configured with id: {}'.format(pipe_config[ID]))
+        declared_pipe_ids.add(pipe_config[ID])
         pipe = PlumberPipe()
         pipe.configure(pipe_config,
                        get_or_default(self.current_checkpoint, pipe_config[ID],
@@ -441,20 +452,23 @@ class PlumberPlanner(Hooked):
   def execute(self):
 
     def save_new_checkpoint(current_result):
-      LOG.log(PLUMBER_LOGS, wrap_in_dividers('Plumber: Checkpointing'))
+      LOG.log(PLUMBER_LOGS, wrap_in_dividers('Checkpointing'))
       if contains_activity(self.results) and current_result == SUCCESS or (
           current_result == FAILURE and self.checkpoint_unit == PIPE):
-        LOG.log(PLUMBER_LOGS, 'Changes performed, persisting a new checkpoint')
+        LOG.log(PLUMBER_LOGS,
+                'Changes performed, persisting a new checkpoint...')
         self.checkpoint_store.save_data(self.current_checkpoint,
                                         create_execution_report(self.results,
                                                                 gitmojis=True))
+      else:
+        LOG.log(PLUMBER_LOGS, 'No changes performed, skip checkpointing')
 
     def main_execution_logic():
       self.results = [{ID: pipe.config[ID], STATUS: UNKNOWN, PIPE: pipe} for
                       pipe in self.pipes]
       for item in self.results:
         LOG.log(PLUMBER_LOGS, wrap_in_dividers(
-            'Plumber: Pipe evaluation for [{}]'.format(item[ID])))
+            'Pipe evaluation for [{}]'.format(item[ID])))
 
         def pipe_execution_logic():
           if item[PIPE].evaluate():

@@ -30,7 +30,10 @@ class YamlFileStore(DataStore):
     try:
       with open(self.path) as file:
         return self.parser.full_load(file)
-    except FileNotFoundError as e:
+    except FileNotFoundError:
+      LOG.warn(
+          'File {} not found, will be created upon persistence'.format(
+              self.path))
       return {}
 
   def save_data(self, content, info=None):
@@ -42,15 +45,16 @@ class YamlEnvFileStore(YamlFileStore):
 
   def __init__(self):
     super(YamlEnvFileStore, self).__init__()
-    self.pattern = re.compile(r".*\$\{env.([A-Za-z_]*)\}(.*)")
+    self.pattern = re.compile(r"(.*)\$\{env.([A-Za-z_]*)\}(.*)")
 
     def envex_constructor(loader, node):
       value = loader.construct_scalar(node)
-      envVar, remainingPath = self.pattern.match(value).groups()
+      starting_path, envVar, remainingPath = self.pattern.match(value).groups()
       LOG.debug(
           'Found environment variable {}, will be substituted if found'.format(
               envVar))
-      return os.getenv(envVar, '\{env.' + envVar + '\}') + remainingPath
+      return starting_path + os.getenv(envVar,
+                                       '\{env.' + envVar + '\}') + remainingPath
 
     self.parser.add_implicit_resolver('!envvar', self.pattern,
                                       Loader=self.parser.FullLoader)
@@ -66,14 +70,14 @@ class YamlGitFileStore(YamlFileStore):
 
   def configure(self, config):
     super().configure(config)
-    self.repo = Repo(path=current_path())
+    self.repo = Repo(path=os.path.dirname(config[PATH]))
 
   def save_data(self, content, info=None):
     super().save_data(content, info)
     self.repo.git.add(self.path)
     if info is not None:
       self.repo.index.commit(
-        ':wrench::construction_worker: [Plumber]\n{}'.format(info))
+          ':wrench::construction_worker: [Plumber]\n{}'.format(info))
       origin = self.repo.remote(name='origin')
       origin.push()
     else:

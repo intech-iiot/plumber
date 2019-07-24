@@ -1,5 +1,6 @@
 import os
 import logging
+import yaml
 
 REQUIRED = 'required'
 PATH = 'path'
@@ -119,8 +120,13 @@ def get_or_default(config, name, default, value_type=None,
     if value_type is not None and type(config[name]) is not value_type:
       if raise_on_type_mismatch:
         raise ConfigError(
-            'The value type for {} is {}. It should be {}'.format(name, type(
-                config[name]), value_type))
+            'The value type for {} is {}. It should be {}:\n{}'.format(name,
+                                                                      type(
+                                                                          config[
+                                                                            name]).__name__,
+                                                                      value_type.__name__,
+                                                                      yaml.dump(
+                                                                          config)))
       return default
     return config[name]
   else:

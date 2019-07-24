@@ -13,20 +13,34 @@ global:
 #      path: filepath
 
   prehook:
-    - scope: global/pipe
+    - batch: false
+      timeout: 0
       steps:
         - command1
         - command2
   posthook:
-    - scope: global/pipe
-      condition: always/failure/success
+    - condition: always/failure/success
+      batch: false
+      timeout: 0
       steps:
         - command1
         - command2
 
 pipes:
   - id: Something
-    enabled: true
+    prehook:
+      - batch: false
+        timeout: 0
+        steps:
+          - command1
+          - command2
+      posthook:
+        - condition: always/failure/success
+          batch: false
+          timeout: 0
+          steps:
+            - command1
+            - command2
     expression: paths and script
     conditions:
       - type: localdiff
@@ -41,8 +55,8 @@ pipes:
           - path: regex
             id: path2
     actions:
-      batch: true
-      timeout: 500
+      batch: false
+      timeout: 0
       steps:
         - command1
         - command2

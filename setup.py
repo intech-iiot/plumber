@@ -12,6 +12,10 @@ setup(
         'plumber=plumber.cli:cli'
       ]
     },
+    tests_require=[
+      'mock==2.0.0',
+      'pytest==4.3.1'
+    ],
     install_requires=[
       'Click==7.0',
       'click-log==0.3.2',

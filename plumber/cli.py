@@ -19,22 +19,21 @@ plumber.common.DEFAULT_DIVIDER_LENGTH = shutil.get_terminal_size().columns
 
 
 def set_log_level(level):
-  if level == 2:
+  if level == 1:
     plumber.common.LOG.setLevel(PLUMBER_LOGS)
-  elif level == 3:
-    plumber.common.LOG.setLevel(logging.WARN)
-  elif level == 4:
+  elif level == 2:
     plumber.common.LOG.setLevel(logging.INFO)
-  elif level > 4:
+  elif level > 2:
     plumber.common.LOG.setLevel(logging.DEBUG)
   else:
-    plumber.common.LOG.setLevel(logging.ERROR)
+    plumber.common.LOG.setLevel(logging.WARN)
 
 
 def print_banner():
-  click.echo(wrap_in_dividers(
-      '{}{}\n{}'.format(pyfiglet.figlet_format('Plumber', font='slant'),
-                        'The CD\CI tool for everything', 'Initiating...')))
+  if plumber.common.LOG.level < logging.WARN:
+    click.echo(wrap_in_dividers(
+        '{}{}\n{}'.format(pyfiglet.figlet_format('Plumber', font='slant'),
+                          'The CD\CI tool you deserve :)', 'Initiating...')))
 
 
 @click.group(name='plumber')
@@ -64,7 +63,8 @@ def get_report(cfg, verbose):
       return
     planner = PlumberPlanner(config)
     report = planner.get_analysis_report()
-    click.echo(wrap_in_dividers('Final Report'))
+    if plumber.common.LOG.level < logging.WARN:
+      click.echo(wrap_in_dividers('Final Report'))
     click.echo(create_initial_report(report))
   except Exception as e:
     plumber.common.LOG.error(''.join(f'\n{l}' for l in e.args))
@@ -92,7 +92,8 @@ def execute(cfg, verbose):
       results = planner.execute()
     finally:
       if results is not None:
-        click.echo(wrap_in_dividers('Final Report'))
+        if plumber.common.LOG.level < logging.WARN:
+          click.echo(wrap_in_dividers('Final Report'))
         click.echo(create_execution_report(results))
   except Exception as e:
     plumber.common.LOG.error(''.join(f'\n{l}' for l in e.args))
