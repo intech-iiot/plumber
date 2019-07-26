@@ -4,7 +4,8 @@ from mock import MagicMock
 import pytest
 
 from plumber.common import ID, DIFF, BRANCH, ACTIVE, TARGET, EXPRESSION, \
-  ConfigError, PATH, COMMIT
+  ConfigError, PATH, COMMIT, STEPS, BATCH, TIMEOUT, RETURN_CODE, STDOUT, STDERR, \
+  STEP, UTF8, ExecutionFailure, PREHOOK, POSTHOOK, CONDITION, SUCCESS, FAILURE
 
 
 ################################################
@@ -379,84 +380,449 @@ def test_local_diff_conditional_create_checkpoint():
 
 
 def test_executor_configure():
-  pass
+  CONFIG = {
+    STEPS: [
+      'echo "Hello"',
+      'echo "World"'
+    ],
+    BATCH: False,
+    TIMEOUT: 100
+  }
+  from plumber.core import Executor
+  executor = Executor()
+  executor.configure(CONFIG)
+  assert executor.steps[0] == CONFIG[STEPS][0]
+  assert executor.steps[1] == CONFIG[STEPS][1]
+  assert executor.batch is False
+  assert executor.timeout == 100
+  assert executor.results is not None
 
 
 def test_executor_configure_no_steps():
-  pass
+  from plumber.core import Executor
+  executor = Executor()
+  try:
+    executor.configure({})
+    pytest.fail('Executor should not be configured without steps')
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_executor_configure_invalid_steps():
-  pass
+  from plumber.core import Executor
+  executor = Executor()
+  try:
+    executor.configure({STEPS: {'step 1': 'step 1'}})
+    pytest.fail('Executor should not be configured without right steps')
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_executor_configure_invalid_batch():
-  pass
+  CONFIG = {
+    STEPS: [
+      'echo "Hello"',
+      'echo "World"'
+    ],
+    BATCH: 'False',
+    TIMEOUT: 100
+  }
+  from plumber.core import Executor
+  executor = Executor()
+  try:
+    executor.configure(CONFIG)
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_executor_configure_invalid_timeout():
-  pass
+  CONFIG = {
+    STEPS: [
+      'echo "Hello"',
+      'echo "World"'
+    ],
+    BATCH: False,
+    TIMEOUT: '100'
+  }
+  from plumber.core import Executor
+  executor = Executor()
+  try:
+    executor.configure(CONFIG)
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_executor_execute():
-  pass
+  CONFIG = {
+    STEPS: [
+      'echo "Hello"',
+      'echo "World"'
+    ],
+    BATCH: False,
+  }
+  from plumber.core import Executor
+  executor = Executor()
+  executor.configure(CONFIG)
+  executor.execute()
+  assert len(executor.results) == 2
+  assert executor.results[0][RETURN_CODE] == 0
+  assert executor.results[0][STDOUT].decode(UTF8) == 'Hello\n'
+  assert executor.results[0][STDERR].decode(UTF8) == ''
+  assert executor.results[0][STEP] == 'echo "Hello"'
+  assert executor.results[1][RETURN_CODE] == 0
+  assert executor.results[1][STDOUT].decode(UTF8) == 'World\n'
+  assert executor.results[1][STDERR].decode(UTF8) == ''
+  assert executor.results[1][STEP] == 'echo "World"'
+
+
+def test_executor_execute_batch():
+  CONFIG = {
+    STEPS: [
+      'echo "Hello"',
+      'echo "World"'
+    ],
+    BATCH: True,
+  }
+  from plumber.core import Executor
+  executor = Executor()
+  executor.configure(CONFIG)
+  executor.execute()
+  assert len(executor.results) == 1
+  assert executor.results[0][RETURN_CODE] == 0
+  assert executor.results[0][STDOUT].decode(UTF8) == 'Hello\nWorld\n'
+  assert executor.results[0][STDERR].decode(UTF8) == ''
+  assert executor.results[0][STEP] == '\n echo "Hello"\n echo "World"'
 
 
 def test_executor_execute_error():
-  pass
+  CONFIG = {
+    STEPS: [
+      'echi "Hello"',
+      'echo "World"'
+    ],
+    BATCH: False,
+  }
+  from plumber.core import Executor
+  executor = Executor()
+  executor.configure(CONFIG)
+  try:
+    executor.execute()
+    pytest.fail('Executor should raise exception on invalid command')
+  except Exception as e:
+    assert type(e) is ExecutionFailure
+
+  assert len(executor.results) == 1
+  assert executor.results[0][RETURN_CODE] != 0
+  assert executor.results[0][STDOUT].decode(UTF8) == ''
+  assert executor.results[0][STDERR].decode(UTF8) != ''
+  assert executor.results[0][STEP] == 'echi "Hello"'
 
 
 def test_executor_execute_error_timeout():
-  pass
+  CONFIG = {
+    STEPS: [
+      'sleep 2',
+      'echo "World"'
+    ],
+    TIMEOUT: 1,
+    BATCH: False,
+  }
+  from plumber.core import Executor
+  executor = Executor()
+  executor.configure(CONFIG)
+  try:
+    executor.execute()
+    pytest.fail('Executor should raise timeout exception if timeout is set')
+  except Exception as e:
+    assert type(e) is ExecutionFailure
+
+  assert len(executor.results) == 1
+  assert executor.results[0][RETURN_CODE] == 130
+  assert executor.results[0][STDOUT].decode(UTF8) == ''
+  assert executor.results[0][STDERR].decode(UTF8) != ''
+  assert executor.results[0][STEP] == 'sleep 2'
 
 
-def test_executor_execute_batch_timeout():
-  pass
-
-
-def test_executor_execute_batch_timeout_error():
-  pass
+def test_executor_execute_batch_error():
+  CONFIG = {
+    STEPS: [
+      'echo "Hello"',
+      'echoi "World"'
+    ],
+    BATCH: True,
+  }
+  from plumber.core import Executor
+  executor = Executor()
+  executor.configure(CONFIG)
+  try:
+    executor.execute()
+  except Exception as e:
+    assert type(e) is ExecutionFailure
+  assert len(executor.results) == 1
+  assert executor.results[0][RETURN_CODE] != 0
+  assert executor.results[0][STDOUT].decode(UTF8) == 'Hello\n'
+  assert executor.results[0][STDERR].decode(UTF8) != ''
+  assert executor.results[0][STEP] == '\n echo "Hello"\n echoi "World"'
 
 
 def test_executor_execute_get_results():
-  pass
+  CONFIG = {
+    STEPS: [
+      'echo "Hello"',
+      'echo "World"'
+    ],
+    BATCH: False,
+  }
+  from plumber.core import Executor
+  executor = Executor()
+  executor.configure(CONFIG)
+  assert len(executor.get_results()) == 0
+  executor.execute()
+  assert len(executor.get_results()) == 2
+  assert executor.get_results()[0][RETURN_CODE] == 0
+  assert executor.get_results()[0][STDOUT].decode(UTF8) == 'Hello\n'
+  assert executor.get_results()[0][STDERR].decode(UTF8) == ''
+  assert executor.get_results()[0][STEP] == 'echo "Hello"'
+  assert executor.get_results()[1][RETURN_CODE] == 0
+  assert executor.get_results()[1][STDOUT].decode(UTF8) == 'World\n'
+  assert executor.get_results()[1][STDERR].decode(UTF8) == ''
+  assert executor.get_results()[1][STEP] == 'echo "World"'
 
 
 ################################################
 # Hooked Tests
 ################################################
 
+HOOKS_CONFIG = {
+  PREHOOK: [
+    {
+      STEPS: [
+        'echo "prehook"'
+      ]
+    }
+  ],
+  POSTHOOK: [
+    {
+      STEPS: [
+        'echo "posthook"'
+      ]
+    },
+    {
+      CONDITION: SUCCESS,
+      STEPS: [
+        'echo "posthook-success"'
+      ]
+    },
+    {
+      CONDITION: FAILURE,
+      STEPS: [
+        'echo "posthook-failure"'
+      ]
+    }
+  ]
+}
+
 
 def test_hooked_configure():
-  pass
+  from plumber.core import Hooked, Executor
+  hooks = Hooked()
+  hooks.configure(HOOKS_CONFIG)
+  assert hooks.prehooks is not None
+  assert len(hooks.prehooks) == 1
+  assert type(hooks.prehooks[0]) is Executor
+  assert hooks.prehooks[0].steps[0] == 'echo "prehook"'
+  assert hooks.posthooks is not None
+  assert len(hooks.posthooks) == 1
+  assert type(hooks.posthooks[0]) is Executor
+  assert hooks.posthooks[0].steps[0] == 'echo "posthook"'
+  assert hooks.posthooks_success is not None
+  assert len(hooks.posthooks_success) == 1
+  assert type(hooks.posthooks_success[0]) is Executor
+  assert hooks.posthooks_success[0].steps[0] == 'echo "posthook-success"'
+  assert hooks.posthooks_failure is not None
+  assert len(hooks.posthooks_failure) == 1
+  assert type(hooks.posthooks_failure[0]) is Executor
+  assert hooks.posthooks_failure[0].steps[0] == 'echo "posthook-failure"'
 
 
 def test_hooked_configure_invalid_prehooks():
-  pass
+  hooks_config = {
+    PREHOOK: 'echo "prehook"'
+  }
+  from plumber.core import Hooked
+  hooks = Hooked()
+  try:
+    hooks.configure(hooks_config)
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_hooked_configure_invalid_posthooks():
-  pass
+  hooks_config = {
+    POSTHOOK: 'echo "prehook"'
+  }
+  from plumber.core import Hooked
+  hooks = Hooked()
+  try:
+    hooks.configure(hooks_config)
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_hooked_run_prehooks():
-  pass
+  from plumber.core import Hooked
+  hooks = Hooked()
+  hooks.configure(HOOKS_CONFIG)
+  hooks.run_prehooks()
+  for executor in hooks.prehooks:
+    assert len(executor.results) == 1
+    assert executor.results[0][RETURN_CODE] == 0
+    assert executor.results[0][STDOUT].decode(UTF8) == 'prehook\n'
+    assert executor.results[0][STDERR].decode(UTF8) == ''
+    assert executor.results[0][STEP] == 'echo "prehook"'
 
 
 def test_hooked_run_posthooks():
-  pass
+  from plumber.core import Hooked
+  hooks = Hooked()
+  hooks.configure(HOOKS_CONFIG)
+  hooks.run_posthooks('None')
+  for executor in hooks.posthooks:
+    assert len(executor.results) == 1
+    assert executor.results[0][RETURN_CODE] == 0
+    assert executor.results[0][STDOUT].decode(UTF8) == 'posthook\n'
+    assert executor.results[0][STDERR].decode(UTF8) == ''
+    assert executor.results[0][STEP] == 'echo "posthook"'
+  for executor in hooks.posthooks_success:
+    assert len(executor.results) == 0
+  for executor in hooks.posthooks_failure:
+    assert len(executor.results) == 0
 
 
 def test_hooked_run_posthooks_success():
-  pass
+  from plumber.core import Hooked
+  hooks = Hooked()
+  hooks.configure(HOOKS_CONFIG)
+  hooks.run_posthooks(SUCCESS)
+  for executor in hooks.posthooks:
+    assert len(executor.results) == 1
+    assert executor.results[0][RETURN_CODE] == 0
+    assert executor.results[0][STDOUT].decode(UTF8) == 'posthook\n'
+    assert executor.results[0][STDERR].decode(UTF8) == ''
+    assert executor.results[0][STEP] == 'echo "posthook"'
+  for executor in hooks.posthooks_success:
+    assert len(executor.results) == 1
+    assert executor.results[0][RETURN_CODE] == 0
+    assert executor.results[0][STDOUT].decode(UTF8) == 'posthook-success\n'
+    assert executor.results[0][STDERR].decode(UTF8) == ''
+    assert executor.results[0][STEP] == 'echo "posthook-success"'
+  for executor in hooks.posthooks_failure:
+    assert len(executor.results) == 0
 
 
 def test_hooked_run_posthooks_failure():
-  pass
+  from plumber.core import Hooked
+  hooks = Hooked()
+  hooks.configure(HOOKS_CONFIG)
+  hooks.run_posthooks(FAILURE)
+  for executor in hooks.posthooks:
+    assert len(executor.results) == 1
+    assert executor.results[0][RETURN_CODE] == 0
+    assert executor.results[0][STDOUT].decode(UTF8) == 'posthook\n'
+    assert executor.results[0][STDERR].decode(UTF8) == ''
+    assert executor.results[0][STEP] == 'echo "posthook"'
+  for executor in hooks.posthooks_failure:
+    assert len(executor.results) == 1
+    assert executor.results[0][RETURN_CODE] == 0
+    assert executor.results[0][STDOUT].decode(UTF8) == 'posthook-failure\n'
+    assert executor.results[0][STDERR].decode(UTF8) == ''
+    assert executor.results[0][STEP] == 'echo "posthook-failure"'
+  for executor in hooks.posthooks_success:
+    assert len(executor.results) == 0
 
 
-def test_hooked_wrap_in_hooks():
-  pass
+def test_hooked_wrap_in_hooks_success():
+  from plumber.core import Hooked
+  hooks = Hooked()
+  hooks.configure(HOOKS_CONFIG)
+
+  def check_prehook_called():
+    for executor in hooks.prehooks:
+      assert len(executor.results) == 1
+      assert executor.results[0][RETURN_CODE] == 0
+      assert executor.results[0][STDOUT].decode(UTF8) == 'prehook\n'
+      assert executor.results[0][STDERR].decode(UTF8) == ''
+      assert executor.results[0][STEP] == 'echo "prehook"'
+    for executor in hooks.posthooks:
+      assert len(executor.results) == 0
+    for executor in hooks.posthooks_success:
+      assert len(executor.results) == 0
+    for executor in hooks.posthooks_failure:
+      assert len(executor.results) == 0
+    return 'success'
+
+  def check_posthook_called(status):
+    assert status == SUCCESS
+    for executor in hooks.posthooks:
+      assert len(executor.results) == 1
+      assert executor.results[0][RETURN_CODE] == 0
+      assert executor.results[0][STDOUT].decode(UTF8) == 'posthook\n'
+      assert executor.results[0][STDERR].decode(UTF8) == ''
+      assert executor.results[0][STEP] == 'echo "posthook"'
+    for executor in hooks.posthooks_success:
+      assert len(executor.results) == 1
+      assert executor.results[0][RETURN_CODE] == 0
+      assert executor.results[0][STDOUT].decode(UTF8) == 'posthook-success\n'
+      assert executor.results[0][STDERR].decode(UTF8) == ''
+      assert executor.results[0][STEP] == 'echo "posthook-success"'
+    for executor in hooks.posthooks_failure:
+      assert len(executor.results) == 0
+
+  assert hooks.wrap_in_hooks(check_prehook_called,
+                             check_posthook_called)() == 'success'
+
+
+def test_hooked_wrap_in_hooks_failure():
+  from plumber.core import Hooked
+  hooks = Hooked()
+  hooks.configure(HOOKS_CONFIG)
+
+  def check_prehook_called():
+    for executor in hooks.prehooks:
+      assert len(executor.results) == 1
+      assert executor.results[0][RETURN_CODE] == 0
+      assert executor.results[0][STDOUT].decode(UTF8) == 'prehook\n'
+      assert executor.results[0][STDERR].decode(UTF8) == ''
+      assert executor.results[0][STEP] == 'echo "prehook"'
+    for executor in hooks.posthooks:
+      assert len(executor.results) == 0
+    for executor in hooks.posthooks_success:
+      assert len(executor.results) == 0
+    for executor in hooks.posthooks_failure:
+      assert len(executor.results) == 0
+    raise ExecutionFailure('Just to test')
+
+  def check_posthook_called(status):
+    assert status == FAILURE
+    for executor in hooks.posthooks:
+      assert len(executor.results) == 1
+      assert executor.results[0][RETURN_CODE] == 0
+      assert executor.results[0][STDOUT].decode(UTF8) == 'posthook\n'
+      assert executor.results[0][STDERR].decode(UTF8) == ''
+      assert executor.results[0][STEP] == 'echo "posthook"'
+    for executor in hooks.posthooks_failure:
+      assert len(executor.results) == 1
+      assert executor.results[0][RETURN_CODE] == 0
+      assert executor.results[0][STDOUT].decode(UTF8) == 'posthook-failure\n'
+      assert executor.results[0][STDERR].decode(UTF8) == ''
+      assert executor.results[0][STEP] == 'echo "posthook-failure"'
+    for executor in hooks.posthooks_success:
+      assert len(executor.results) == 0
+
+  try:
+    hooks.wrap_in_hooks(check_prehook_called, check_posthook_called)()
+  except Exception as e:
+    assert type(e) is ExecutionFailure
 
 
 ################################################

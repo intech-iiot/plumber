@@ -213,7 +213,7 @@ class Executor:
         RETURN_CODE: 130,
         STDOUT: e.stdout,
         STDERR: '{} \nStep execution timed out after {} seconds'.format(
-            e.stderr, e.timeout)
+            e.stderr, e.timeout).encode(UTF8)
 
       }
 
