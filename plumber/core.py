@@ -55,6 +55,7 @@ class LocalDiffConditional(Conditional):
         LOG.info(
             '[{}] Not on active branch, conditional disabled'.format(self.id))
         self.result = False
+        return self.result
       if self.target_branch is not None and str(
           self.repo.active_branch) != self.target_branch:
         previous_branch = str(self.repo.active_branch)
@@ -97,6 +98,7 @@ class LocalDiffConditional(Conditional):
 
   def _has_diff(self):
     if COMMIT not in self.checkpoint:
+      LOG.warning('[{}] no checkpoint found, pipe will be executed')
       return True
     if self.expression is not None:
       LOG.info(
@@ -116,17 +118,18 @@ class LocalDiffConditional(Conditional):
             yaml.dump(target_diff)))
       id = get_or_default(target_diff, ID, None, str)
       if id is not None:
-        for detected_diff in diffs:
-          path = get_or_default(target_diff, PATH, None, str)
-          if path is not None:
+        path = get_or_default(target_diff, PATH, None, str)
+        if path is not None:
+          for detected_diff in diffs:
             if re.match(target_diff[PATH], detected_diff):
               LOG.info('[{}] path pattern {} matches {}'.format(self.id,
                                                                 target_diff[
                                                                   PATH],
                                                                 detected_diff))
               exp_dict[id] = True
-            else:
-              exp_dict[id] = False
+              break
+          if id not in exp_dict:
+            exp_dict[id] = False
     return evaluate_expression(self.expression, exp_dict)
 
   def _has_diff_all(self):
@@ -162,9 +165,7 @@ class Executor:
       raise ConfigError(
           'No steps specified to execute:\n{}'.format(yaml.dump(config)))
     self.batch = get_or_default(config, BATCH, False, bool)
-    timeout = get_or_default(config, TIMEOUT, None, int)
-    if timeout is not None:
-      self.timeout = timeout
+    self.timeout = get_or_default(config, TIMEOUT, None, int)
     self.results = []
 
   def execute(self):

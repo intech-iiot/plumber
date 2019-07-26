@@ -7,7 +7,7 @@ from kubernetes.client import V1ConfigMap
 from kubernetes.client.rest import ApiException
 
 from plumber.common import ConfigError, IOError, PlumberError, get_or_default, \
-  current_path, LOG, PATH, NAME, NAMESPACE, TYPE, CONFIG, LOCALFILE, LOCALGIT, \
+  LOG, PATH, NAME, NAMESPACE, TYPE, CONFIG, LOCALFILE, LOCALGIT, \
   KUBECONFIG, DEFAULT_CHECKPOINT_FILENAME
 from plumber.interfaces import DataStore
 
@@ -31,7 +31,7 @@ class YamlFileStore(DataStore):
       with open(self.path) as file:
         return self.parser.full_load(file)
     except FileNotFoundError:
-      LOG.warn(
+      LOG.warning(
           'File {} not found, will be created upon persistence'.format(
               self.path))
       return {}
@@ -54,7 +54,7 @@ class YamlEnvFileStore(YamlFileStore):
           'Found environment variable {}, will be substituted if found'.format(
               envVar))
       return starting_path + os.getenv(envVar,
-                                       '\{env.' + envVar + '\}') + remainingPath
+                                       '{env.' + envVar + '}') + remainingPath
 
     self.parser.add_implicit_resolver('!envvar', self.pattern,
                                       Loader=self.parser.FullLoader)

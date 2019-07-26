@@ -45,7 +45,7 @@ def cli():
   pass
 
 
-@click.command('detect')
+@click.command('status')
 @click.option('--cfg', '-c', help='Path tho plumber config file')
 @click.option('--verbose', '-v', help='Set the verbosity level', count=True)
 def get_report(cfg, verbose):

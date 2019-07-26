@@ -27,3 +27,20 @@ def test_get_or_default_type_check_fail():
     pytest.fail('Should throw {}'.format(ConfigError))
   except Exception as e:
     assert type(e) is ConfigError
+
+
+def test_evaluate_expression():
+  values = {'a': True, 'b': False}
+  from plumber.common import evaluate_expression
+  assert evaluate_expression('a and b', values) == False
+  assert evaluate_expression('a or b', values) == True
+
+
+def test_evaluate_expression_invalid():
+  values = {'a': True, 'b': False}
+  from plumber.common import evaluate_expression
+  try:
+    evaluate_expression('x and y', values)
+    pytest.fail('Invalid expression should not succeeed')
+  except Exception as e:
+    assert type(e) is NameError
