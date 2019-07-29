@@ -1,5 +1,5 @@
 # Plumber
-Plumber is a CLI tool that provides the plumbing necessary for CD/CI pipelines. It allows you to execute shell scripts that you define only when certain conditions are fulfilled. These conditions can include detected changes at a user defined git path. The tool also creates checkpoints when it runs your scripts and changes something and only checks for the validity of the conditions between subsequent checkpoints. The checkpoints can be stored on either a git repo or a kubernetes configmap.
+Plumber is a CLI tool that provides the plumbing necessary for CD/CI pipelines. It allows you to execute shell scripts that you define only when certain conditions are fulfilled. These conditions can include detected changes at a user defined git path. The tool also creates checkpoints when it runs your scripts and changes something, and only checks for the validity of the conditions between subsequent checkpoints. The checkpoints can be stored on either a git repo or a kubernetes configmap.
 
 ## Quickstart
 
@@ -38,7 +38,7 @@ This is the config file from which plumber picks it's configuration and work spe
 | 1  | my-cd | True            |
 +----+-------+-----------------+
 ```
-5. Run the command `plumber go`. This will run detect the change, run the actions, printing out a report at the end:
+5. Run the command `plumber go`. This will detect the change, run the actions, printing out a report at the end:
 ```
 +----+-------+----------+
 | SN | ID    | STATUS   |
@@ -96,12 +96,12 @@ global:
     config:
       name: name-of-config
       namespace: name-of-namespace
-    type: localfile
-    config:
-      path: filepath
-    type: localgit
-    config:
-      path: filepath
+#   type: localfile
+#   config:
+#     path: filepath
+#   type: localgit
+#   config:
+#     path: filepath
 
   prehook:
     - batch: false
@@ -217,57 +217,6 @@ global:
 ```
 The unit defaults to `single` if not specified.
 
-#### Hooks
-
-The tool has the ability to run scripts or commands before and after the detection and execution of the CD steps. The steps that are executed before the pipes are prehooks while the ones that are executed after the pipes are posthooks.
-Both types of hooks can be specified at global and pipe-local level. The posthooks can be conditioned i.e. the user can specify whether to always execute the posthooks or only execute them upon success or failure.
-The global hooks are specified under the global settings as follows:
-
-```yml
-global:
-  prehook:
-    - batch: false
-      timeout: 0
-      steps:
-        - command1
-        - command2
-  posthook:
-    - condition: always/failure/success
-      batch: false
-      timeout: 0
-      steps:
-        - command1
-        - command2
-```
-while the pipe-scoped hooks are specified within the pipe configuration:
-```yml
-pipes:
-  - id: my-pipe
-    prehook:
-      - batch: false
-        timeout: 0
-        steps:
-          - command1
-          - command2
-    posthook:
-      - condition: always/failure/success
-        batch: false
-        timeout: 0
-        steps:
-          - command1
-          - command2
-```
-The `batch` option specifies whether the commands are batched in a single script upon execution. This forces the steps to be executed as a single step (in a single shell command).
-You can specify a `timeout` in seconds on the steps. If a step (or all the steps in case `batch` is set to true) takes more time than the specified timeout, the execution is halted and the cd job fails.
-Both of these options are optional.
-
-The `condition` on the `posthook` can have the following values:
-* always: The posthook is always executed
-* success: The posthook is only executed if the pipe is successful
-* failure: The posthook is only executed if the pipe fails
-
-It defaults to `always`.
-
 #### Pipes
 
 Pipes are the logical unit of CD. The interpretation of what a pipe is dependent on a user, it can be the deployment task of a service, or it can be the deployment task of a whole tech stack. Systematically, a pipe encapsulates a bunch of execution conditions and actions that are performed when those conditions are met. A pipe is identified by an id, which is a required field. The checkpoint file also contains individual checkpoints for each pipe. 
@@ -315,6 +264,9 @@ The expression is an optional field and can contain a valid python expression wi
 
 **actions:**
 Contains the shell executable scripts and commands that are executed if the pipe conditions/expression evaluation returns true. 
+The `batch` option specifies whether the commands are batched in a single script upon execution. This forces the steps to be executed as a single step (in a single shell command).
+You can specify a `timeout` in seconds on the steps. If a step (or all the steps in case `batch` is set to true) takes more time than the specified timeout, the execution is halted and the cd job fails.
+Both of these options are optional.
 
 #### Conditions:
 
@@ -364,6 +316,54 @@ An identifier for the path, it is only required when the expression is specified
 **expression:**
 The expression is an optional field and can contain a valid python expression with ids of the paths. If specified, the expression is evaluated and the condition returns it's result. If not specified, the condition returns true if any of the path matches.
 
+#### Hooks
+
+The tool has the ability to run scripts or commands before and after the detection and execution of the CD steps. The steps that are executed before the pipes are prehooks while the ones that are executed after the pipes are posthooks.
+Both types of hooks can be specified at global and pipe-local level. The posthooks can be conditioned i.e. the user can specify whether to always execute the posthooks or only execute them upon success or failure.
+The global hooks are specified under the global settings as follows:
+
+```yml
+global:
+  prehook:
+    - batch: false
+      timeout: 0
+      steps:
+        - command1
+        - command2
+  posthook:
+    - condition: always/failure/success
+      batch: false
+      timeout: 0
+      steps:
+        - command1
+        - command2
+```
+while the pipe-scoped hooks are specified within the pipe configuration:
+```yml
+pipes:
+  - id: my-pipe
+    prehook:
+      - batch: false
+        timeout: 0
+        steps:
+          - command1
+          - command2
+    posthook:
+      - condition: always/failure/success
+        batch: false
+        timeout: 0
+        steps:
+          - command1
+          - command2
+```
+The functionality of `batch` and `timeout` is the same as in pipes.
+The `condition` on the `posthook` can have the following values:
+* always: The posthook is always executed
+* success: The posthook is only executed if the pipe is successful
+* failure: The posthook is only executed if the pipe fails
+
+It defaults to `always`.
+
 #### Environment Variables Substitution
 
 You can specify environment variables in the configuration file, the variable is replaced with it's respective value if found when reading the configuration. The format for specifying the environment variables is as follows:
@@ -380,4 +380,12 @@ Also note that this will not work if you stringify the placeholder:
 global:
   checkpointing:
     unit: "${env.CHECKPOINT_UNIT}"
+```
+
+#### Logs/Verbosity
+
+You can change the level of logs/verbosity through the `-v/--verbose` flag. For example, to print out the debug logs, run any command with the `-vvv` flag e.g.:
+
+```
+plumber go -vvv
 ```

@@ -28,6 +28,7 @@ class LocalDiffConditional(Conditional):
     self.expression = None
     self.result = None
     self.id = None
+    self.new_checkpoint = None
 
   def configure(self, config, checkpoint):
     self.id = get_or_default(config, ID, None, str)
@@ -339,8 +340,8 @@ class PlumberPipe(Hooked):
                                 CONDITION: _create_conditional(condition_config,
                                                                get_or_default(
                                                                    checkpoint,
-                                                                   id,
-                                                                   {}))})
+                                                                   id, {},
+                                                                   dict))})
     actions = get_or_default(config, ACTIONS, None, dict)
     if actions is not None:
       self.actions = Executor()

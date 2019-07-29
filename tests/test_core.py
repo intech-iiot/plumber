@@ -5,7 +5,8 @@ import pytest
 
 from plumber.common import ID, DIFF, BRANCH, ACTIVE, TARGET, EXPRESSION, \
   ConfigError, PATH, COMMIT, STEPS, BATCH, TIMEOUT, RETURN_CODE, STDOUT, STDERR, \
-  STEP, UTF8, ExecutionFailure, PREHOOK, POSTHOOK, CONDITION, SUCCESS, FAILURE
+  STEP, UTF8, ExecutionFailure, PREHOOK, POSTHOOK, CONDITION, SUCCESS, FAILURE, \
+  CONDITIONS, ACTIONS, TYPE, LOCALDIFF
 
 
 ################################################
@@ -831,63 +832,420 @@ def test_hooked_wrap_in_hooks_failure():
 
 
 def test_pipe_configure():
-  pass
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    CONDITIONS: [
+      {
+        ID: 'c1',
+        TYPE: LOCALDIFF
+      },
+      {
+        ID: 'c2',
+        TYPE: LOCALDIFF
+      }
+    ],
+    ACTIONS: {
+      STEPS: [
+      ]
+    }
+  }
+  CHECKPOINT = {
+    'test-pipe': {
+      'c1': 'checkpoint',
+      'c2': 'checkpoint'
+    }
+  }
+  from plumber.core import LocalDiffConditional
+  LocalDiffConditional.configure = MagicMock()
+  LocalDiffConditional.configure.return_value = None
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  pipe.configure(PIPE_CONFIG, CHECKPOINT)
+  LocalDiffConditional.configure.assert_called()
+  assert len(pipe.conditions) == 2
+  assert pipe.checkpoint is CHECKPOINT
+  assert pipe.actions is not None
 
 
 def test_pipe_configure_no_id():
-  pass
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  try:
+    pipe.configure({}, None)
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_pipe_configure_invalid_id():
-  pass
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  try:
+    pipe.configure({ID: 123}, None)
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_pipe_configure_no_conditions():
-  pass
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    CONDITIONS: [
+    ],
+    ACTIONS: {
+      STEPS: [
+      ]
+    }
+  }
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  pipe.configure(PIPE_CONFIG, None)
+  assert len(pipe.conditions) == 0
 
 
 def test_pipe_configure_invalid_conditions():
-  pass
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    CONDITIONS: [
+      [], []
+    ],
+    ACTIONS: {
+      STEPS: [
+      ]
+    }
+  }
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  try:
+    pipe.configure(PIPE_CONFIG, None)
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_pipe_configure_invalid_conditions_id():
-  pass
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    CONDITIONS: [
+      {
+        ID: None
+      }
+    ],
+    ACTIONS: {
+      STEPS: [
+      ]
+    }
+  }
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  try:
+    pipe.configure(PIPE_CONFIG, None)
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_pipe_configure_invalid_conditions_id_duplicate():
-  pass
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    CONDITIONS: [
+      {
+        ID: ID
+      },
+      {
+        ID: ID
+      }
+    ],
+    ACTIONS: {
+      STEPS: [
+      ]
+    }
+  }
+  from plumber.core import LocalDiffConditional
+  LocalDiffConditional.configure = MagicMock()
+  LocalDiffConditional.configure.return_value = None
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  try:
+    pipe.configure(PIPE_CONFIG, {})
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_pipe_configure_no_actions():
-  pass
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    CONDITIONS: [
+      {
+        ID: '1'
+      },
+      {
+        ID: '2'
+      }
+    ]
+  }
+  from plumber.core import LocalDiffConditional
+  LocalDiffConditional.configure = MagicMock()
+  LocalDiffConditional.configure.return_value = None
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  try:
+    pipe.configure(PIPE_CONFIG, {})
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_pipe_configure_invalid_actions():
-  pass
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    CONDITIONS: [
+      {
+        ID: '1'
+      },
+      {
+        ID: '2'
+      }
+    ],
+    ACTIONS: [
+      'abc'
+    ]
+  }
+  from plumber.core import LocalDiffConditional
+  LocalDiffConditional.configure = MagicMock()
+  LocalDiffConditional.configure.return_value = None
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  try:
+    pipe.configure(PIPE_CONFIG, {})
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_pipe_evaluate():
-  pass
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    CONDITIONS: [
+      {
+        ID: '1'
+      },
+      {
+        ID: '2'
+      }
+    ],
+    ACTIONS: {
+      STEPS: [
+      ]
+    }
+  }
+  from plumber.core import LocalDiffConditional
+  LocalDiffConditional.configure = MagicMock()
+  LocalDiffConditional.configure.return_value = None
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  pipe.configure(PIPE_CONFIG, {})
+  pipe.conditions[0][CONDITION].evaluate = MagicMock()
+  pipe.conditions[0][CONDITION].evaluate.return_value = True
+
+  assert pipe.evaluate() is True
+
+
+def test_pipe_evaluate_false():
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    CONDITIONS: [
+      {
+        ID: '1'
+      },
+      {
+        ID: '2'
+      }
+    ],
+    ACTIONS: {
+      STEPS: [
+      ]
+    }
+  }
+  from plumber.core import LocalDiffConditional
+  LocalDiffConditional.configure = MagicMock()
+  LocalDiffConditional.configure.return_value = None
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  pipe.configure(PIPE_CONFIG, {})
+  pipe.conditions[0][CONDITION].evaluate = MagicMock()
+  pipe.conditions[0][CONDITION].evaluate.return_value = False
+  pipe.conditions[1][CONDITION].evaluate = MagicMock()
+  pipe.conditions[1][CONDITION].evaluate.return_value = False
+  assert pipe.evaluate() is False
+  pipe.conditions[0][CONDITION].evaluate.assert_called_once()
+  pipe.conditions[1][CONDITION].evaluate.assert_called_once()
 
 
 def test_pipe_evaluate_expression():
-  pass
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    EXPRESSION: 'a or b',
+    CONDITIONS: [
+      {
+        ID: 'a'
+      },
+      {
+        ID: 'b'
+      }
+    ],
+    ACTIONS: {
+      STEPS: [
+      ]
+    }
+  }
+  from plumber.core import LocalDiffConditional
+  LocalDiffConditional.configure = MagicMock()
+  LocalDiffConditional.configure.return_value = None
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  pipe.configure(PIPE_CONFIG, {})
+  pipe.conditions[0][CONDITION].evaluate = MagicMock()
+  pipe.conditions[0][CONDITION].evaluate.return_value = False
+  pipe.conditions[1][CONDITION].evaluate = MagicMock()
+  pipe.conditions[1][CONDITION].evaluate.return_value = True
+  assert pipe.evaluate() is True
+  pipe.conditions[0][CONDITION].evaluate.assert_called_once()
+  pipe.conditions[1][CONDITION].evaluate.assert_called_once()
 
 
 def test_pipe_execute():
-  pass
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    CONDITIONS: [
+    ],
+    ACTIONS: {
+      STEPS: [
+        'echo "Hello"'
+      ]
+    }
+  }
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  pipe.configure(PIPE_CONFIG, {})
+  pipe.execute()
+  assert len(pipe.actions.results) == 1
+  assert pipe.actions.results[0][RETURN_CODE] == 0
+  assert pipe.actions.results[0][STDOUT].decode(UTF8) == 'Hello\n'
+  assert pipe.actions.results[0][STDERR].decode(UTF8) == ''
+  assert pipe.actions.results[0][STEP] == PIPE_CONFIG[ACTIONS][STEPS][0]
 
 
 def test_pipe_get_new_checkpoint():
-  pass
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    CONDITIONS: [
+      {
+        ID: 'c1',
+        TYPE: LOCALDIFF
+      },
+      {
+        ID: 'c2',
+        TYPE: LOCALDIFF
+      }
+    ],
+    ACTIONS: {
+      STEPS: [
+      ]
+    }
+  }
+  CHECKPOINT = {
+    'test-pipe': {
+      'c1': 'checkpoint1',
+      'c2': 'checkpoint2'
+    }
+  }
+  from plumber.core import LocalDiffConditional
+  LocalDiffConditional.configure = MagicMock()
+  LocalDiffConditional.configure.return_value = None
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  pipe.configure(PIPE_CONFIG, CHECKPOINT)
+  pipe.conditions[0][CONDITION].new_checkpoint = 'checkpoint1'
+  pipe.conditions[1][CONDITION].new_checkpoint = 'checkpoint2'
+  cp = pipe.get_new_checkpoint()
+  assert cp['c1']['commit'] == 'checkpoint1'
+  assert cp['c2']['commit'] == 'checkpoint2'
 
 
 def test_pipe_run_prehooks():
-  pass
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    PREHOOK: [
+      {
+        STEPS: [
+          'echo "HELLO"'
+        ]
+      }
+    ],
+    CONDITIONS: [
+      {
+        ID: 'c1',
+        TYPE: LOCALDIFF
+      },
+      {
+        ID: 'c2',
+        TYPE: LOCALDIFF
+      }
+    ],
+    ACTIONS: {
+      STEPS: [
+      ]
+    }
+  }
+  from plumber.core import LocalDiffConditional
+  LocalDiffConditional.configure = MagicMock()
+  LocalDiffConditional.configure.return_value = None
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  pipe.configure(PIPE_CONFIG, {})
+  pipe.run_prehooks()
+  assert len(pipe.prehooks) == 1
+  assert len(pipe.prehooks[0].results) == 1
+  assert pipe.prehooks[0].results[0][RETURN_CODE] == 0
+  assert pipe.prehooks[0].results[0][STDOUT].decode(UTF8) == 'HELLO\n'
+  assert pipe.prehooks[0].results[0][STDERR].decode(UTF8) == ''
+  assert pipe.prehooks[0].results[0][STEP] == PIPE_CONFIG[PREHOOK][0][STEPS][0]
 
 
 def test_pipe_run_posthooks():
-  pass
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    POSTHOOK: [
+      {
+        STEPS: [
+          'echo "HELLO"'
+        ]
+      }
+    ],
+    CONDITIONS: [
+      {
+        ID: 'c1',
+        TYPE: LOCALDIFF
+      },
+      {
+        ID: 'c2',
+        TYPE: LOCALDIFF
+      }
+    ],
+    ACTIONS: {
+      STEPS: [
+      ]
+    }
+  }
+  from plumber.core import LocalDiffConditional
+  LocalDiffConditional.configure = MagicMock()
+  LocalDiffConditional.configure.return_value = None
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  pipe.configure(PIPE_CONFIG, {})
+  pipe.run_posthooks(None)
+  assert len(pipe.posthooks) == 1
+  assert len(pipe.posthooks[0].results) == 1
+  assert pipe.posthooks[0].results[0][RETURN_CODE] == 0
+  assert pipe.posthooks[0].results[0][STDOUT].decode(UTF8) == 'HELLO\n'
+  assert pipe.posthooks[0].results[0][STDERR].decode(UTF8) == ''
+  assert pipe.posthooks[0].results[0][STEP] == PIPE_CONFIG[POSTHOOK][0][STEPS][
+    0]
 
 
 ################################################
