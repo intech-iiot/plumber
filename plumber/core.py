@@ -348,6 +348,8 @@ class PlumberPipe(Hooked):
       self.actions.configure(actions)
 
   def evaluate(self):
+    if self.conditions is None:
+      return True
     expression = get_or_default(self.config, EXPRESSION, None, str)
     if expression is not None:
       exp_values = {}
@@ -364,6 +366,8 @@ class PlumberPipe(Hooked):
     self.actions.execute()
 
   def get_new_checkpoint(self):
+    if self.conditions is None:
+      return None
     for condition in self.conditions:
       self.checkpoint[condition[ID]] = condition[
         CONDITION].create_checkpoint()
@@ -444,6 +448,9 @@ class PlumberPlanner(Hooked):
       super(PlumberPlanner, self).run_posthooks(last_result)
 
   def get_analysis_report(self):
+    if self.pipes is None:
+      raise ExecutionFailure('No pipes configured')
+
     def get_report():
       return [
         {ID: pipe.config[ID], DETECTED: pipe.wrap_in_hooks(pipe.evaluate)()}
@@ -455,8 +462,12 @@ class PlumberPlanner(Hooked):
     new_checkpoint = {}
     if len(self.current_checkpoint) != 0 and not force:
       raise ExecutionFailure('A checkpoint already exists')
+    if self.pipes is None:
+      raise ExecutionFailure('No pipes configured')
     for pipe in self.pipes:
-      new_checkpoint[pipe.config[ID]] = pipe.get_new_checkpoint()
+      checkpoint = pipe.get_new_checkpoint()
+      if checkpoint is not None:
+        new_checkpoint[pipe.config[ID]] = checkpoint
     self.checkpoint_store.save_data(new_checkpoint,
                                     'Initiating a new checkpoint')
 
@@ -477,6 +488,8 @@ class PlumberPlanner(Hooked):
                 'Skip checkpointing due to inactivity, error or disabling')
 
     def main_execution_logic():
+      if self.pipes is None:
+        raise ExecutionFailure('No pipes configured')
       self.results = [{ID: pipe.config[ID], STATUS: UNKNOWN, PIPE: pipe} for
                       pipe in self.pipes]
       for item in self.results:
@@ -497,8 +510,9 @@ class PlumberPlanner(Hooked):
                     'No change detected on pipe {}. Moving on'.format(item[ID]))
             item[STATUS] = NOT_DETECTED
           if item[STATUS] != NOT_DETECTED:
-            self.current_checkpoint[item[PIPE].config[ID]] = item[
-              PIPE].get_new_checkpoint()
+            checkpoint = item[PIPE].get_new_checkpoint()
+            if checkpoint is not None:
+              self.current_checkpoint[item[PIPE].config[ID]] = checkpoint
 
         try:
           item[PIPE].wrap_in_hooks(pipe_execution_logic)()
@@ -528,6 +542,8 @@ def create_initial_report(report):
 
 
 def contains_activity(results):
+  if results is None:
+    return False
   for result in results:
     if result[STATUS] != NOT_DETECTED:
       return True

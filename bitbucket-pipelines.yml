@@ -3,6 +3,7 @@ image: python:3-alpine
 pipelines:
   default:
     - step:
+        name: Run unit tests
         caches:
           - pip
         script:

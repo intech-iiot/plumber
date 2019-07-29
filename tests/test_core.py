@@ -6,12 +6,13 @@ import pytest
 from plumber.common import ID, DIFF, BRANCH, ACTIVE, TARGET, EXPRESSION, \
   ConfigError, PATH, COMMIT, STEPS, BATCH, TIMEOUT, RETURN_CODE, STDOUT, STDERR, \
   STEP, UTF8, ExecutionFailure, PREHOOK, POSTHOOK, CONDITION, SUCCESS, FAILURE, \
-  CONDITIONS, ACTIONS, TYPE, LOCALDIFF
-
+  CONDITIONS, ACTIONS, TYPE, LOCALDIFF, GLOBAL, CHECKPOINTING, PIPE, UNIT, \
+  LOCALFILE, CONFIG, PIPES, SINGLE, LOCALGIT, DETECTED, STATUS, EXECUTED
 
 ################################################
 # Helpers
 ################################################
+from plumber.io import YamlFileStore, YamlGitFileStore
 
 
 def get_repo_mock():
@@ -1045,6 +1046,21 @@ def test_pipe_evaluate():
   assert pipe.evaluate() is True
 
 
+def test_pipe_evaluate_missing_conditions():
+  PIPE_CONFIG = {
+    ID: 'test-pipe',
+    ACTIONS: {
+      STEPS: [
+      ]
+    }
+  }
+  from plumber.core import PlumberPipe
+  pipe = PlumberPipe()
+  pipe.configure(PIPE_CONFIG, None)
+  assert pipe.conditions is None
+  assert pipe.evaluate() is True
+
+
 def test_pipe_evaluate_false():
   PIPE_CONFIG = {
     ID: 'test-pipe',
@@ -1254,43 +1270,352 @@ def test_pipe_run_posthooks():
 
 
 def test_planner_init():
-  pass
+  PLUMBER_CONFIG = {
+    GLOBAL: {
+      CHECKPOINTING: {
+        UNIT: PIPE,
+        TYPE: LOCALGIT,
+        CONFIG: {
+          PATH: 'plumber-test.yml'
+        }
+      }
+    },
+    PIPES: [
+      {
+        ID: 'test-pipe',
+        CONDITIONS: [
+          {
+            TYPE: LOCALDIFF,
+            ID: 'paths',
+            DIFF: [
+              {
+                PATH: 'test-path/.*'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+  from plumber.core import PlumberPlanner
+  planner = PlumberPlanner(PLUMBER_CONFIG)
+  assert planner.config is PLUMBER_CONFIG
+  assert type(planner.checkpoint_store) is YamlGitFileStore
+  assert len(planner.pipes) == 1
+  assert planner.results is None
+  assert planner.checkpoint_unit == PIPE
 
 
 def test_planner_init_no_global_config():
-  pass
+  PLUMBER_CONFIG = {
+    PIPES: [
+      {
+        ID: 'test-pipe',
+        CONDITIONS: [
+          {
+            TYPE: LOCALDIFF,
+            ID: 'paths',
+            DIFF: [
+              {
+                PATH: 'test-path/.*'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+  from plumber.core import PlumberPlanner
+  planner = PlumberPlanner(PLUMBER_CONFIG)
+  assert planner.config is PLUMBER_CONFIG
+  assert type(planner.checkpoint_store) is YamlFileStore
+  assert len(planner.pipes) == 1
+  assert planner.results is None
+  assert planner.checkpoint_unit == SINGLE
 
 
 def test_planner_init_no_checkpointing_config():
-  pass
+  PLUMBER_CONFIG = {
+    GLOBAL: {
+    },
+    PIPES: [
+      {
+        ID: 'test-pipe',
+        CONDITIONS: [
+          {
+            TYPE: LOCALDIFF,
+            ID: 'paths',
+            DIFF: [
+              {
+                PATH: 'test-path/.*'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+  from plumber.core import PlumberPlanner
+  planner = PlumberPlanner(PLUMBER_CONFIG)
+  assert planner.config is PLUMBER_CONFIG
+  assert type(planner.checkpoint_store) is YamlFileStore
+  assert len(planner.pipes) == 1
+  assert planner.results is None
+  assert planner.checkpoint_unit == SINGLE
 
 
 def test_planner_init_no_pipes():
-  pass
+  from plumber.core import PlumberPlanner
+  planner = PlumberPlanner({})
+  assert type(planner.checkpoint_store) is YamlFileStore
+  assert planner.pipes is None
 
 
 def test_planner_init_pipes_no_id():
-  pass
+  PLUMBER_CONFIG = {
+    PIPES: [
+      {
+        CONDITIONS: [
+          {
+            TYPE: LOCALDIFF,
+            ID: 'paths',
+            DIFF: [
+              {
+                PATH: 'test-path/.*'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+  from plumber.core import PlumberPlanner
+  try:
+    _ = PlumberPlanner(PLUMBER_CONFIG)
+    pytest.fail('Planner should not be created without pipe id')
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_planner_init_pipes_duplicate_id():
-  pass
+  PLUMBER_CONFIG = {
+    PIPES: [
+      {
+        ID: PIPE,
+        CONDITIONS: [
+          {
+            TYPE: LOCALDIFF,
+            ID: 'paths',
+            DIFF: [
+              {
+                PATH: 'test-path/.*'
+              }
+            ]
+          }
+        ]
+      },
+      {
+        ID: PIPE,
+        CONDITIONS: [
+          {
+            TYPE: LOCALDIFF,
+            ID: 'paths',
+            DIFF: [
+              {
+                PATH: 'test-path/.*'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+  from plumber.core import PlumberPlanner
+  try:
+    _ = PlumberPlanner(PLUMBER_CONFIG)
+    pytest.fail('Planner should not be created with duplicate pipe id')
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_planner_run_prehooks():
-  pass
+  CONFIG = {
+    GLOBAL: {
+      PREHOOK: [
+        {
+          STEPS: [
+            'echo "HELLO"'
+          ]
+        }
+      ]
+    }}
+  from plumber.core import PlumberPlanner
+  planner = PlumberPlanner(CONFIG)
+  assert len(planner.prehooks) == 1
+  planner.run_prehooks()
+  assert len(planner.prehooks[0].results) == 1
+  assert planner.prehooks[0].results[0][RETURN_CODE] == 0
+  assert planner.prehooks[0].results[0][STDOUT].decode(UTF8) == 'HELLO\n'
+  assert planner.prehooks[0].results[0][STDERR].decode(UTF8) == ''
+  assert planner.prehooks[0].results[0][STEP] == \
+         CONFIG[GLOBAL][PREHOOK][0][STEPS][0]
 
 
 def test_planner_run_posthooks():
-  pass
+  CONFIG = {
+    GLOBAL: {
+      POSTHOOK: [
+        {
+          STEPS: [
+            'echo "HELLO"'
+          ]
+        }
+      ]
+    }}
+  from plumber.core import PlumberPlanner
+  planner = PlumberPlanner(CONFIG)
+  assert len(planner.posthooks) == 1
+  planner.run_posthooks(None)
+  assert len(planner.posthooks[0].results) == 1
+  assert planner.posthooks[0].results[0][RETURN_CODE] == 0
+  assert planner.posthooks[0].results[0][STDOUT].decode(UTF8) == 'HELLO\n'
+  assert planner.posthooks[0].results[0][STDERR].decode(UTF8) == ''
+  assert planner.posthooks[0].results[0][STEP] == \
+         CONFIG[GLOBAL][POSTHOOK][0][STEPS][0]
 
 
 def test_planner_get_analysis_report():
-  pass
+  PLUMBER_CONFIG = {
+    GLOBAL: {
+    },
+    PIPES: [
+      {
+        ID: 'test-pipe',
+        CONDITIONS: [
+          {
+            TYPE: LOCALDIFF,
+            ID: 'paths',
+            DIFF: [
+              {
+                PATH: 'test-path/.*'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+  from plumber.core import PlumberPlanner
+  planner = PlumberPlanner(PLUMBER_CONFIG)
+  planner.pipes[0].evaluate = MagicMock()
+  planner.pipes[0].evaluate.return_value = True
+  report = planner.get_analysis_report()
+  assert len(report) == 1
+  assert report[0][ID] == 'test-pipe'
+  assert report[0][DETECTED] is True
+
+
+def test_planner_get_analysis_report_no_pipes():
+  from plumber.core import PlumberPlanner
+  planner = PlumberPlanner({})
+  try:
+    planner.get_analysis_report()
+    pytest.fail('Planner should throw exception if no pipes are configured')
+  except Exception as e:
+    assert type(e) is ExecutionFailure
 
 
 def test_planner_execute():
-  pass
+  PLUMBER_CONFIG = {
+    GLOBAL: {
+    },
+    PIPES: [
+      {
+        ID: 'test-pipe',
+        CONDITIONS: [
+          {
+            TYPE: LOCALDIFF,
+            ID: 'paths',
+            DIFF: [
+              {
+                PATH: 'test-path/.*'
+              }
+            ]
+          }
+        ],
+        ACTIONS: {
+          STEPS: [
+            'echo "Go to sleep"'
+          ]
+        }
+      }
+    ]
+  }
+  from plumber.core import PlumberPlanner
+  planner = PlumberPlanner(PLUMBER_CONFIG)
+  planner.pipes[0].conditions[0][CONDITION].evaluate = MagicMock()
+  planner.pipes[0].conditions[0][CONDITION].evaluate.return_value = True
+  planner.pipes[0].conditions[0][CONDITION].create_checkpoint = MagicMock()
+  planner.pipes[0].conditions[0][
+    CONDITION].create_checkpoint.return_value = 'checkpoint'
+  planner.checkpoint_store.save_data = MagicMock()
+  planner.checkpoint_store.save_data.return_value = None
+  planner.execute()
+  assert planner.results is not None
+  assert len(planner.results) == 1
+  assert planner.results[0][STATUS] == EXECUTED
+  planner.checkpoint_store.save_data.assert_called_once()
+
+
+def test_planner_execute_no_checkpoint():
+  PLUMBER_CONFIG = {
+    GLOBAL: {
+    },
+    PIPES: [
+      {
+        ID: 'test-pipe',
+        CONDITIONS: [
+          {
+            TYPE: LOCALDIFF,
+            ID: 'paths',
+            DIFF: [
+              {
+                PATH: 'test-path/.*'
+              }
+            ]
+          }
+        ],
+        ACTIONS: {
+          STEPS: [
+            'echo "Go to sleep"'
+          ]
+        }
+      }
+    ]
+  }
+  from plumber.core import PlumberPlanner
+  planner = PlumberPlanner(PLUMBER_CONFIG)
+  planner.pipes[0].conditions[0][CONDITION].evaluate = MagicMock()
+  planner.pipes[0].conditions[0][CONDITION].evaluate.return_value = True
+  planner.pipes[0].conditions[0][CONDITION].create_checkpoint = MagicMock()
+  planner.pipes[0].conditions[0][
+    CONDITION].create_checkpoint.return_value = 'checkpoint'
+  planner.checkpoint_store.save_data = MagicMock()
+  planner.checkpoint_store.save_data.return_value = None
+  planner.execute(False)
+  assert planner.results is not None
+  assert len(planner.results) == 1
+  assert planner.results[0][STATUS] == EXECUTED
+  planner.checkpoint_store.save_data.assert_not_called()
+
+
+def test_planner_execute_no_pipes():
+  from plumber.core import PlumberPlanner
+  try:
+    planner = PlumberPlanner({})
+    planner.execute()
+  except Exception as e:
+    assert type(e) is ExecutionFailure
 
 
 def test_planner_execute_error():
