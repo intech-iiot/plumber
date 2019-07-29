@@ -1,0 +1,9 @@
+image: python:3-alpine
+
+pipelines:
+  default:
+    - step:
+        caches:
+          - pip
+        script:
+          - python setup.py test
