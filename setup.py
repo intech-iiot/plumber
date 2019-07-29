@@ -1,10 +1,5 @@
 from setuptools import setup, find_packages
 
-test_dependencies = [
-  'mock==2.0.0',
-  'pytest==4.3.1'
-]
-
 setup(
     name="plumber",
     version='0.0.1b',
@@ -17,10 +12,11 @@ setup(
         'plumber=plumber.cli:cli'
       ]
     },
-    tests_require=test_dependencies,
-    extras_require={
-      'testing': test_dependencies
-    },
+    tests_require=[
+      'mock==2.0.0',
+      'pytest==4.3.1'
+    ],
+    setup_requires=["pytest-runner==4.4"],
     install_requires=[
       'Click==7.0',
       'click-log==0.3.2',
