@@ -46,14 +46,15 @@ def test_yaml_file_store_no_path():
 def test_yaml_env_file_store():
   path = 'yaml-test'
   ensure_file_not_exist(path)
+  key, value = get_random_env()
   with open(path, 'w') as file:
-    file.write('user: ${env.USER}')
+    file.write('user: ${env.' + key + '}')
   from plumber.io import YamlEnvFileStore
   yaml_store = YamlEnvFileStore()
   yaml_store.configure({PATH: path})
   saved_data = yaml_store.get_data()
   assert 'user' in saved_data
-  assert saved_data['user'] == os.environ['USER']
+  assert saved_data['user'] == value
 
 
 @mock.patch('git.index.base.IndexFile.commit')
@@ -105,19 +106,22 @@ def test_kube_config_store_2(replace_mock, read_mock, config_mock):
   config_mock.return_value = None
   read_mock.return_value = existing
   replace_mock.return_value = None
-  os.environ['KUBERNETES_SERVICE_HOST'] = '127.0.0.1'
-  from plumber.io import KubeConfigStore
-  store = KubeConfigStore()
-  store.configure({})
-  data = store.get_data()
-  assert len(data) == 1
-  assert data['name'] == existing.data['name']
-  data = {'name': 'i have a name now, but i forgot'}
-  store.save_data(data)
-  config_mock.assert_called_once()
-  read_mock.assert_called()
-  read_mock.assert_called_with('plumber-checkpoint', 'default', export=True)
-  replace_mock.assert_called_once()
+  try:
+    os.environ['KUBERNETES_SERVICE_HOST'] = '127.0.0.1'
+    from plumber.io import KubeConfigStore
+    store = KubeConfigStore()
+    store.configure({})
+    data = store.get_data()
+    assert len(data) == 1
+    assert data['name'] == existing.data['name']
+    data = {'name': 'i have a name now, but i forgot'}
+    store.save_data(data)
+    config_mock.assert_called_once()
+    read_mock.assert_called()
+    read_mock.assert_called_with('plumber-checkpoint', 'default', export=True)
+    replace_mock.assert_called_once()
+  finally:
+    del os.environ['KUBERNETES_SERVICE_HOST']
 
 
 def test_create_checkpoint_store_file():
@@ -191,3 +195,8 @@ def test_initialize_default_checkpoint_store():
   store = initialize_default_checkpoint_store()
   assert type(store) == YamlFileStore
   assert store.path == DEFAULT_CHECKPOINT_FILENAME
+
+
+def get_random_env():
+  for item in os.environ:
+    return item, os.environ[item]
