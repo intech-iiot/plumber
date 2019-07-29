@@ -103,7 +103,7 @@ def test_kube_config_store(create_mock, read_mock, incluster_config_mock,
 @mock.patch('kubernetes.config.load_incluster_config')
 @mock.patch('kubernetes.client.CoreV1Api.read_namespaced_config_map')
 @mock.patch('kubernetes.client.CoreV1Api.replace_namespaced_config_map')
-def test_kube_config_store_2(replace_mock, read_mock,  incluster_config_mock,
+def test_kube_config_store_2(replace_mock, read_mock, incluster_config_mock,
     config_mock):
   existing = V1ConfigMap()
   existing.data = {'name': 'I have no name!'}
@@ -179,9 +179,11 @@ def test_create_checkpoint_store_git():
   assert store.path == DEFAULT_CHECKPOINT_FILENAME
 
 
+@mock.patch('kubernetes.config.load_kube_config')
 @mock.patch('kubernetes.config.load_incluster_config')
-def test_create_checkpoint_store_kube(config_mock):
+def test_create_checkpoint_store_kube(config_mock_incluster, config_mock):
   config_mock.return_value = None
+  config_mock_incluster.return_value = None
   from plumber.io import create_checkpoint_store
   config = {
     TYPE: KUBECONFIG,
