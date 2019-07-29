@@ -6,4 +6,5 @@ pipelines:
         caches:
           - pip
         script:
+          - apk add git
           - python setup.py test
