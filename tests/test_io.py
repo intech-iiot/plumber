@@ -94,7 +94,6 @@ def test_kube_config_store(create_mock, read_mock, incluster_config_mock,
   assert len(data) == 0
   data = {'name': 'i have no name'}
   store.save_data(data)
-  config_mock.assert_called_once()
   read_mock.assert_called()
   read_mock.assert_called_with('plumber-checkpoint', 'default', export=True)
   create_mock.assert_called_once()
@@ -122,7 +121,6 @@ def test_kube_config_store_2(replace_mock, read_mock,  incluster_config_mock,
     assert data['name'] == existing.data['name']
     data = {'name': 'i have a name now, but i forgot'}
     store.save_data(data)
-    config_mock.assert_called_once()
     read_mock.assert_called()
     read_mock.assert_called_with('plumber-checkpoint', 'default', export=True)
     replace_mock.assert_called_once()
