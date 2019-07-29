@@ -76,9 +76,12 @@ def test_yaml_git_file_store(mock_add, mock_push, mock_commit):
 
 
 @mock.patch('kubernetes.config.load_kube_config')
+@mock.patch('kubernetes.config.load_incluster_config')
 @mock.patch('kubernetes.client.CoreV1Api.read_namespaced_config_map')
 @mock.patch('kubernetes.client.CoreV1Api.create_namespaced_config_map')
-def test_kube_config_store(create_mock, read_mock, config_mock):
+def test_kube_config_store(create_mock, read_mock, incluster_config_mock,
+    config_mock):
+  incluster_config_mock.return_value = None
   config_mock.return_value = None
   exception = ApiException()
   exception.status = 404
@@ -97,12 +100,15 @@ def test_kube_config_store(create_mock, read_mock, config_mock):
   create_mock.assert_called_once()
 
 
+@mock.patch('kubernetes.config.load_kube_config')
 @mock.patch('kubernetes.config.load_incluster_config')
 @mock.patch('kubernetes.client.CoreV1Api.read_namespaced_config_map')
 @mock.patch('kubernetes.client.CoreV1Api.replace_namespaced_config_map')
-def test_kube_config_store_2(replace_mock, read_mock, config_mock):
+def test_kube_config_store_2(replace_mock, read_mock,  incluster_config_mock,
+    config_mock):
   existing = V1ConfigMap()
   existing.data = {'name': 'I have no name!'}
+  incluster_config_mock.return_value = None
   config_mock.return_value = None
   read_mock.return_value = existing
   replace_mock.return_value = None
