@@ -70,10 +70,36 @@ def get_report(cfg, verbose):
     plumber.common.LOG.error(''.join(f'\n{l}' for l in e.args))
 
 
+@click.command('init')
+@click.option('--cfg', '-c', help='Path tho plumber config file')
+@click.option('--force', '-f', is_flag=True,
+              help='Force checkpoint creation, overwrite existing')
+@click.option('--verbose', '-v', help='Set the verbosity level', count=True)
+def init(cfg, force, verbose):
+  """Initiate a new checkpoint"""
+  try:
+    set_log_level(verbose)
+    print_banner()
+    if cfg is None:
+      cfg = DEFAULT_CONFIG_PATH
+    config_store = YamlEnvFileStore()
+    config_store.configure({PATH: cfg})
+    config = config_store.get_data()
+    if config is None or len(config) == 0:
+      plumber.common.LOG.error('Configuration not found')
+      return
+    planner = PlumberPlanner(config)
+    planner.init_checkpoint(force)
+  except Exception as e:
+    plumber.common.LOG.error(''.join(f'\n{l}' for l in e.args))
+
+
 @click.command('go')
 @click.option('--cfg', '-c', help='Path tho plumber config file')
+@click.option('--no-checkpoint', '-n', is_flag=True,
+              help='Do not create the checkpoint')
 @click.option('--verbose', '-v', help='Set the verbosity level', count=True)
-def execute(cfg, verbose):
+def execute(cfg, no_checkpoint, verbose):
   """Detect changes and run CD/CI steps"""
   try:
     set_log_level(verbose)
@@ -89,7 +115,7 @@ def execute(cfg, verbose):
     planner = PlumberPlanner(config)
     results = None
     try:
-      results = planner.execute()
+      results = planner.execute(not no_checkpoint)
     finally:
       if results is not None:
         if plumber.common.LOG.level < logging.WARN:
@@ -101,3 +127,4 @@ def execute(cfg, verbose):
 
 cli.add_command(get_report)
 cli.add_command(execute)
+cli.add_command(init)

@@ -450,11 +450,21 @@ class PlumberPlanner(Hooked):
 
     return self.wrap_in_hooks(get_report)()
 
-  def execute(self):
+  def init_checkpoint(self, force=False):
+    new_checkpoint = {}
+    if len(self.current_checkpoint) != 0 and not force:
+      raise ExecutionFailure('A checkpoint already exists')
+    for pipe in self.pipes:
+      new_checkpoint[pipe.config[ID]] = pipe.get_new_checkpoint()
+    self.checkpoint_store.save_data(new_checkpoint,
+                                    'Initiating a new checkpoint')
+
+  def execute(self, checkpoint=True):
 
     def save_new_checkpoint(current_result):
       LOG.log(PLUMBER_LOGS, wrap_in_dividers('Checkpointing'))
-      if contains_activity(self.results) and current_result == SUCCESS or (
+      if checkpoint and contains_activity(
+          self.results) and current_result == SUCCESS or (
           current_result == FAILURE and self.checkpoint_unit == PIPE):
         LOG.log(PLUMBER_LOGS,
                 'Changes performed, persisting a new checkpoint...')
@@ -462,7 +472,8 @@ class PlumberPlanner(Hooked):
                                         create_execution_report(self.results,
                                                                 gitmojis=True))
       else:
-        LOG.log(PLUMBER_LOGS, 'No changes performed, skip checkpointing')
+        LOG.log(PLUMBER_LOGS,
+                'Skip checkpointing due to inactivity, error or disabling')
 
     def main_execution_logic():
       self.results = [{ID: pipe.config[ID], STATUS: UNKNOWN, PIPE: pipe} for
