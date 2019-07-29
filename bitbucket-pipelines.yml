@@ -6,4 +6,5 @@ pipelines:
         caches:
           - pip
         script:
+          - pip install -e ".[testing]"
           - python setup.py test

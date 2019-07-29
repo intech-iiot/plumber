@@ -1,8 +1,13 @@
 from setuptools import setup, find_packages
 
+test_dependencies = [
+  'mock==2.0.0',
+  'pytest==4.3.1'
+]
+
 setup(
     name="plumber",
-    version='0.0.1a',
+    version='0.0.1b',
     description='A CD/CI tool that executes arbitrary commands upon detection of change between the current commit and the last checkpoint',
     author='Usman Shahid',
     author_email='usman.shahid@intechww.com',
@@ -12,10 +17,10 @@ setup(
         'plumber=plumber.cli:cli'
       ]
     },
-    tests_require=[
-      'mock==2.0.0',
-      'pytest==4.3.1'
-    ],
+    tests_require=test_dependencies,
+    extras_require={
+      'testing': test_dependencies
+    },
     install_requires=[
       'Click==7.0',
       'click-log==0.3.2',
