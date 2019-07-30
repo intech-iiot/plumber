@@ -75,7 +75,7 @@ Usage: plumber status [OPTIONS]
   Detect changes and print out a report
 
 Options:
-  -c, --cfg TEXT  Path tho plumber config file
+  -c, --cfg TEXT  Path to plumber config file
   -v, --verbose   Set the verbosity level
   --help          Show this message and exit.
 ```

@@ -47,7 +47,7 @@ def cli():
 
 
 @click.command('status')
-@click.option('--cfg', '-c', help='Path tho plumber config file')
+@click.option('--cfg', '-c', help='Path to plumber config file')
 @click.option('--verbose', '-v', help='Set the verbosity level', count=True)
 def get_report(cfg, verbose):
   """Detect changes and print out a report"""
@@ -73,7 +73,7 @@ def get_report(cfg, verbose):
 
 
 @click.command('init')
-@click.option('--cfg', '-c', help='Path tho plumber config file')
+@click.option('--cfg', '-c', help='Path to plumber config file')
 @click.option('--force', '-f', is_flag=True,
               help='Force checkpoint creation, overwrite existing')
 @click.option('--verbose', '-v', help='Set the verbosity level', count=True)
@@ -98,7 +98,7 @@ def init(cfg, force, verbose):
 
 
 @click.command('go')
-@click.option('--cfg', '-c', help='Path tho plumber config file')
+@click.option('--cfg', '-c', help='Path to plumber config file')
 @click.option('--no-checkpoint', '-n', is_flag=True,
               help='Do not create the checkpoint')
 @click.option('--verbose', '-v', help='Set the verbosity level', count=True)
