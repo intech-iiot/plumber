@@ -7,11 +7,13 @@ from plumber.common import ID, DIFF, BRANCH, ACTIVE, TARGET, EXPRESSION, \
   ConfigError, PATH, COMMIT, STEPS, BATCH, TIMEOUT, RETURN_CODE, STDOUT, STDERR, \
   STEP, UTF8, ExecutionFailure, PREHOOK, POSTHOOK, CONDITION, SUCCESS, FAILURE, \
   CONDITIONS, ACTIONS, TYPE, LOCALDIFF, GLOBAL, CHECKPOINTING, PIPE, UNIT, \
-  LOCALFILE, CONFIG, PIPES, SINGLE, LOCALGIT, DETECTED, STATUS, EXECUTED
+  LOCALFILE, CONFIG, PIPES, SINGLE, LOCALGIT, DETECTED, STATUS, EXECUTED, \
+  FAILED, NOT_DETECTED
 
 ################################################
 # Helpers
 ################################################
+from plumber.core import LocalDiffConditional
 from plumber.io import YamlFileStore, YamlGitFileStore
 
 
@@ -1619,7 +1621,49 @@ def test_planner_execute_no_pipes():
 
 
 def test_planner_execute_error():
-  pass
+  PLUMBER_CONFIG = {
+    GLOBAL: {
+    },
+    PIPES: [
+      {
+        ID: 'test-pipe',
+        CONDITIONS: [
+          {
+            TYPE: LOCALDIFF,
+            ID: 'paths',
+            DIFF: [
+              {
+                PATH: 'test-path/.*'
+              }
+            ]
+          }
+        ],
+        ACTIONS: {
+          STEPS: [
+            'abcdef'
+          ]
+        }
+      }
+    ]
+  }
+  from plumber.core import PlumberPlanner
+  planner = PlumberPlanner(PLUMBER_CONFIG)
+  planner.pipes[0].conditions[0][CONDITION].evaluate = MagicMock()
+  planner.pipes[0].conditions[0][CONDITION].evaluate.return_value = True
+  planner.pipes[0].conditions[0][CONDITION].create_checkpoint = MagicMock()
+  planner.pipes[0].conditions[0][
+    CONDITION].create_checkpoint.return_value = 'checkpoint'
+  planner.checkpoint_store.save_data = MagicMock()
+  planner.checkpoint_store.save_data.return_value = None
+  try:
+    planner.execute()
+    pytest.fail('Planner should throw exception in case of bad command')
+  except Exception as e:
+    assert type(e) is ExecutionFailure
+  assert planner.results is not None
+  assert len(planner.results) == 1
+  assert planner.results[0][STATUS] == FAILED
+  planner.checkpoint_store.save_data.assert_not_called()
 
 
 ################################################
@@ -1628,32 +1672,61 @@ def test_planner_execute_error():
 
 
 def test_create_conditional():
-  pass
+  CONFIG = {
+    TYPE: LOCALDIFF,
+    DIFF: [
+      {
+        PATH: 'abc/.*'
+      }
+    ]
+  }
+  from plumber.core import _create_conditional
+  conditional = _create_conditional(CONFIG, {})
+  assert type(conditional) is LocalDiffConditional
 
 
 def test_create_conditional_default():
-  pass
+  CONFIG = {
+    DIFF: [
+      {
+        PATH: 'abc/.*'
+      }
+    ]
+  }
+  from plumber.core import _create_conditional
+  conditional = _create_conditional(CONFIG, {})
+  assert type(conditional) is LocalDiffConditional
 
 
 def test_create_conditional_invalid():
-  pass
-
-
-def test_create_execution_report():
-  pass
-
-
-def test_create_execution_report_gitmoji():
-  pass
-
-
-def test_create_initial_report():
-  pass
+  CONFIG = {
+    TYPE: LOCALGIT,
+    DIFF: [
+      {
+        PATH: 'abc/.*'
+      }
+    ]
+  }
+  from plumber.core import _create_conditional
+  try:
+    _ = _create_conditional(CONFIG, {})
+    pytest.fail('Conditional should not be created')
+  except Exception as e:
+    assert type(e) is ConfigError
 
 
 def test_contains_activity():
-  pass
+  results = [{STATUS: NOT_DETECTED}, {STATUS: DETECTED}]
+  from plumber.core import contains_activity
+  assert contains_activity(results) is True
 
 
-def test_wrap_in_dividers():
-  pass
+def test_contains_activity_not():
+  results = [{STATUS: NOT_DETECTED}, {STATUS: NOT_DETECTED}]
+  from plumber.core import contains_activity
+  assert contains_activity(results) is False
+
+
+def test_contains_activity_none():
+  from plumber.core import contains_activity
+  assert contains_activity(None) is False

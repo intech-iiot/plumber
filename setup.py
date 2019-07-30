@@ -14,7 +14,8 @@ setup(
     },
     tests_require=[
       'mock==2.0.0',
-      'pytest==4.3.1'
+      'pytest==4.3.1',
+      'pytest-cov==2.7.1'
     ],
     setup_requires=["pytest-runner==4.4"],
     install_requires=[

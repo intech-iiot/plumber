@@ -1,6 +1,7 @@
 import os
 import logging
 import yaml
+from terminaltables import AsciiTable
 
 REQUIRED = 'required'
 PATH = 'path'
@@ -121,12 +122,12 @@ def get_or_default(config, name, default, value_type=None,
       if raise_on_type_mismatch:
         raise ConfigError(
             'The value type for {} is {}. It should be {}:\n{}'.format(name,
-                                                                      type(
-                                                                          config[
-                                                                            name]).__name__,
-                                                                      value_type.__name__,
-                                                                      yaml.dump(
-                                                                          config)))
+                                                                       type(
+                                                                           config[
+                                                                             name]).__name__,
+                                                                       value_type.__name__,
+                                                                       yaml.dump(
+                                                                           config)))
       return default
     return config[name]
   else:
@@ -149,3 +150,29 @@ def create_execution_log(result):
                                                                      UTF8),
                                                                  result[
                                                                    RETURN_CODE])
+
+
+def create_execution_report(results, gitmojis=False):
+  table = [['SN', 'ID', 'STATUS']]
+  for i in range(len(results)):
+    status = results[i][STATUS]
+    if gitmojis:
+      status = '{} {}'.format(status, GITMOJI[status])
+    table.append([i + 1, results[i][ID], status])
+  return AsciiTable(table_data=table).table
+
+
+def create_initial_report(report):
+  table = [['SN', 'ID', 'CHANGE DETECTED']]
+  for i in range(len(report)):
+    table.append([i + 1, report[i][ID], report[i][DETECTED]])
+  return AsciiTable(table_data=table).table
+
+
+def wrap_in_dividers(message, divider_char='=', breaks=1):
+  breaks = ''.join('\n' for _ in range(breaks))
+  divider_length = DEFAULT_DIVIDER_LENGTH
+  if divider_length is None:
+    divider_length = len(message)
+  divider = ''.join(f'{divider_char}' for _ in range(divider_length))
+  return '{}\n{}\n{}\n{}\n{}'.format(breaks, divider, message, divider, breaks)

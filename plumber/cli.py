@@ -3,11 +3,12 @@ import click_log
 import plumber
 import plumber.common
 from plumber.core import PlumberPlanner, create_execution_report, \
-  create_initial_report, wrap_in_dividers
+  wrap_in_dividers
 from plumber.io import YamlEnvFileStore
 from plumber.common import PATH, PLUMBER_LOGS
 import logging
 import pyfiglet
+import sys
 
 DEFAULT_CONFIG_PATH = 'plumber.yml'
 
@@ -60,14 +61,15 @@ def get_report(cfg, verbose):
     config = config_store.get_data()
     if config is None or len(config) == 0:
       plumber.common.LOG.error('Configuration not found')
-      return
+      sys.exit(1)
     planner = PlumberPlanner(config)
     report = planner.get_analysis_report()
     if plumber.common.LOG.level < logging.WARN:
       click.echo(wrap_in_dividers('Final Report'))
-    click.echo(create_initial_report(report))
+    click.echo(plumber.common.create_initial_report(report))
   except Exception as e:
     plumber.common.LOG.error(''.join(f'\n{l}' for l in e.args))
+    sys.exit(1)
 
 
 @click.command('init')
@@ -87,11 +89,12 @@ def init(cfg, force, verbose):
     config = config_store.get_data()
     if config is None or len(config) == 0:
       plumber.common.LOG.error('Configuration not found')
-      return
+      sys.exit(1)
     planner = PlumberPlanner(config)
     planner.init_checkpoint(force)
   except Exception as e:
     plumber.common.LOG.error(''.join(f'\n{l}' for l in e.args))
+    sys.exit(1)
 
 
 @click.command('go')
@@ -111,7 +114,7 @@ def execute(cfg, no_checkpoint, verbose):
     config = config_store.get_data()
     if config is None or len(config) == 0:
       plumber.common.LOG.error('Configuration not found')
-      return
+      sys.exit(1)
     planner = PlumberPlanner(config)
     results = None
     try:
@@ -123,6 +126,7 @@ def execute(cfg, no_checkpoint, verbose):
         click.echo(create_execution_report(results))
   except Exception as e:
     plumber.common.LOG.error(''.join(f'\n{l}' for l in e.args))
+    sys.exit(1)
 
 
 cli.add_command(get_report)

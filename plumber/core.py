@@ -1,10 +1,8 @@
 import re
 import subprocess
-import yaml
-import plumber
 
+import yaml
 from git import Repo
-from terminaltables import AsciiTable
 
 from plumber.common import current_path, LOG, evaluate_expression, ConfigError, \
   ExecutionFailure, DIFF, BRANCH, ACTIVE, TARGET, EXPRESSION, COMMIT, ID, PATH, \
@@ -12,7 +10,8 @@ from plumber.common import current_path, LOG, evaluate_expression, ConfigError, 
   LOCALDIFF, GLOBAL, CHECKPOINTING, UNIT, CONDITIONS, CONDITION, ALWAYS, \
   FAILURE, SUCCESS, PREHOOK, POSTHOOK, PIPES, get_or_default, \
   create_execution_log, DETECTED, SINGLE, STATUS, UNKNOWN, EXECUTED, \
-  NOT_DETECTED, PIPE, FAILED, GITMOJI, UTF8, PLUMBER_LOGS
+  NOT_DETECTED, PIPE, FAILED, UTF8, PLUMBER_LOGS, create_execution_report, \
+  wrap_in_dividers
 from plumber.interfaces import Conditional
 from plumber.io import create_checkpoint_store
 
@@ -289,19 +288,6 @@ class Hooked:
     return hook_wrapper
 
 
-def _create_conditional(config, checkpoint):
-  if TYPE in config and type(config[TYPE]) is str:
-    if config[TYPE].lower() == LOCALDIFF:
-      conditional = LocalDiffConditional()
-    else:
-      raise ConfigError(
-          'Invalid condition type specified:\n{}'.format(yaml.dump(config)))
-  else:
-    conditional = LocalDiffConditional()
-  conditional.configure(config, checkpoint)
-  return conditional
-
-
 class PlumberPipe(Hooked):
 
   def __init__(self):
@@ -524,23 +510,6 @@ class PlumberPlanner(Hooked):
     return self.wrap_in_hooks(main_execution_logic, save_new_checkpoint)()
 
 
-def create_execution_report(results, gitmojis=False):
-  table = [['SN', 'ID', 'STATUS']]
-  for i in range(len(results)):
-    status = results[i][STATUS]
-    if gitmojis:
-      status = '{} {}'.format(status, GITMOJI[status])
-    table.append([i + 1, results[i][ID], status])
-  return AsciiTable(table_data=table).table
-
-
-def create_initial_report(report):
-  table = [['SN', 'ID', 'CHANGE DETECTED']]
-  for i in range(len(report)):
-    table.append([i + 1, report[i][ID], report[i][DETECTED]])
-  return AsciiTable(table_data=table).table
-
-
 def contains_activity(results):
   if results is None:
     return False
@@ -550,10 +519,14 @@ def contains_activity(results):
   return False
 
 
-def wrap_in_dividers(message, divider_char='=', breaks=1):
-  breaks = ''.join('\n' for _ in range(breaks))
-  divider_length = plumber.common.DEFAULT_DIVIDER_LENGTH
-  if divider_length is None:
-    divider_length = len(message)
-  divider = ''.join(f'{divider_char}' for _ in range(divider_length))
-  return '{}\n{}\n{}\n{}\n{}'.format(breaks, divider, message, divider, breaks)
+def _create_conditional(config, checkpoint):
+  if TYPE in config and type(config[TYPE]) is str:
+    if config[TYPE].lower() == LOCALDIFF:
+      conditional = LocalDiffConditional()
+    else:
+      raise ConfigError(
+          'Invalid condition type specified:\n{}'.format(yaml.dump(config)))
+  else:
+    conditional = LocalDiffConditional()
+  conditional.configure(config, checkpoint)
+  return conditional
