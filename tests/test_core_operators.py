@@ -1,15 +1,12 @@
-from unittest import mock
-
-from mock import MagicMock
 import pytest
+from mock import MagicMock
 
 from plumber.common import ID, DIFF, BRANCH, ACTIVE, TARGET, EXPRESSION, \
   ConfigError, PATH, COMMIT, STEPS, BATCH, TIMEOUT, RETURN_CODE, STDOUT, STDERR, \
   STEP, UTF8, ExecutionFailure, PREHOOK, POSTHOOK, CONDITION, SUCCESS, FAILURE, \
   CONDITIONS, ACTIONS, TYPE, LOCALDIFF, GLOBAL, CHECKPOINTING, PIPE, UNIT, \
-  LOCALFILE, CONFIG, PIPES, SINGLE, LOCALGIT, DETECTED, STATUS, EXECUTED, \
+  CONFIG, PIPES, SINGLE, LOCALGIT, DETECTED, STATUS, EXECUTED, \
   FAILED, NOT_DETECTED
-
 ################################################
 # Helpers
 ################################################
@@ -52,7 +49,7 @@ def test_local_diff_conditional_config():
     EXPRESSION: 'a and b'
   }
   CHECKPOINT = 'checkpoint'
-  from plumber.core import LocalDiffConditional
+  from plumber.operators import LocalDiffConditional
   conditional = LocalDiffConditional()
   conditional.configure(config, CHECKPOINT)
   assert conditional.id == config[ID]
@@ -73,7 +70,7 @@ def test_local_diff_conditional_config_no_id():
       EXPRESSION: 'a and b'
     }
     CHECKPOINT = 'checkpoint'
-    from plumber.core import LocalDiffConditional
+    from plumber.operators import LocalDiffConditional
     conditional = LocalDiffConditional()
     conditional.configure(config, CHECKPOINT)
   except Exception as e:
@@ -92,7 +89,7 @@ def test_local_diff_conditional_config_invalid_id():
       EXPRESSION: 'a and b'
     }
     CHECKPOINT = 'checkpoint'
-    from plumber.core import LocalDiffConditional
+    from plumber.operators import LocalDiffConditional
     conditional = LocalDiffConditional()
     conditional.configure(config, CHECKPOINT)
   except Exception as e:
@@ -110,7 +107,7 @@ def test_local_diff_conditional_config_no_diffs():
       EXPRESSION: 'a and b'
     }
     CHECKPOINT = 'checkpoint'
-    from plumber.core import LocalDiffConditional
+    from plumber.operators import LocalDiffConditional
     conditional = LocalDiffConditional()
     conditional.configure(config, CHECKPOINT)
   except Exception as e:
@@ -129,7 +126,7 @@ def test_local_diff_conditional_config_invalid_diffs():
       EXPRESSION: 'a and b'
     }
     CHECKPOINT = 'checkpoint'
-    from plumber.core import LocalDiffConditional
+    from plumber.operators import LocalDiffConditional
     conditional = LocalDiffConditional()
     conditional.configure(config, CHECKPOINT)
   except Exception as e:
@@ -145,7 +142,7 @@ def test_local_diff_conditional_config_no_active_target_branch():
     EXPRESSION: 'a and b'
   }
   CHECKPOINT = 'checkpoint'
-  from plumber.core import LocalDiffConditional
+  from plumber.operators import LocalDiffConditional
   conditional = LocalDiffConditional()
   conditional.configure(config, CHECKPOINT)
   assert conditional.id == config[ID]
@@ -167,7 +164,7 @@ def test_local_diff_conditional_config_invalid_active_branch():
       EXPRESSION: 'a and b'
     }
     CHECKPOINT = 'checkpoint'
-    from plumber.core import LocalDiffConditional
+    from plumber.operators import LocalDiffConditional
     conditional = LocalDiffConditional()
     conditional.configure(config, CHECKPOINT)
   except Exception as e:
@@ -186,7 +183,7 @@ def test_local_diff_conditional_config_invalid_target_branch():
       EXPRESSION: 'a and b'
     }
     CHECKPOINT = 'checkpoint'
-    from plumber.core import LocalDiffConditional
+    from plumber.operators import LocalDiffConditional
     conditional = LocalDiffConditional()
     conditional.configure(config, CHECKPOINT)
   except Exception as e:
@@ -205,7 +202,7 @@ def test_local_diff_conditional_config_invalid_expression():
       EXPRESSION: ['a and b']
     }
     CHECKPOINT = 'checkpoint'
-    from plumber.core import LocalDiffConditional
+    from plumber.operators import LocalDiffConditional
     conditional = LocalDiffConditional()
     conditional.configure(config, CHECKPOINT)
   except Exception as e:
@@ -225,7 +222,7 @@ def test_local_diff_conditional_evaluate():
     }
   }
   CHECKPOINT = {COMMIT: 'last-checkpoint'}
-  from plumber.core import LocalDiffConditional
+  from plumber.operators import LocalDiffConditional
   conditional = LocalDiffConditional()
   conditional.configure(config, CHECKPOINT)
   conditional.repo, commits, diffs = get_repo_mock()
@@ -256,7 +253,7 @@ def test_local_diff_conditional_evaluate_not_active_branch():
     }
   }
   CHECKPOINT = {COMMIT: 'last-checkpoint'}
-  from plumber.core import LocalDiffConditional
+  from plumber.operators import LocalDiffConditional
   conditional = LocalDiffConditional()
   conditional.configure(config, CHECKPOINT)
   conditional.repo = MagicMock()
@@ -274,7 +271,7 @@ def test_local_diff_conditional_evaluate_no_checkpoint():
     }]
   }
   CHECKPOINT = {}
-  from plumber.core import LocalDiffConditional
+  from plumber.operators import LocalDiffConditional
   conditional = LocalDiffConditional()
   conditional.configure(config, CHECKPOINT)
   assert conditional.evaluate() is True
@@ -286,7 +283,7 @@ def test_local_diff_conditional_evaluate_invalid_diff():
     DIFF: ['mypath/.*']
   }
   CHECKPOINT = {COMMIT: 'last-checkpoint'}
-  from plumber.core import LocalDiffConditional
+  from plumber.operators import LocalDiffConditional
   conditional = LocalDiffConditional()
   conditional.configure(config, CHECKPOINT)
   conditional.repo, commits, diffs = get_repo_mock()
@@ -307,7 +304,7 @@ def test_local_diff_conditional_evaluate_invalid_diff_path():
     }]
   }
   CHECKPOINT = {COMMIT: 'last-checkpoint'}
-  from plumber.core import LocalDiffConditional
+  from plumber.operators import LocalDiffConditional
   conditional = LocalDiffConditional()
   conditional.configure(config, CHECKPOINT)
   conditional.repo, commits, diffs = get_repo_mock()
@@ -324,7 +321,7 @@ def test_local_diff_conditional_evaluate_invalid_diff_expression_id():
     }]
   }
   CHECKPOINT = {COMMIT: 'last-checkpoint'}
-  from plumber.core import LocalDiffConditional
+  from plumber.operators import LocalDiffConditional
   conditional = LocalDiffConditional()
   conditional.configure(config, CHECKPOINT)
   conditional.repo, commits, diffs = get_repo_mock()
@@ -349,7 +346,7 @@ def test_local_diff_conditional_evaluate_multiple_with_expression():
     }]
   }
   CHECKPOINT = {COMMIT: 'last-checkpoint'}
-  from plumber.core import LocalDiffConditional
+  from plumber.operators import LocalDiffConditional
   conditional = LocalDiffConditional()
   conditional.configure(config, CHECKPOINT)
   conditional.repo, commits, diffs = get_repo_mock()
@@ -369,7 +366,7 @@ def test_local_diff_conditional_create_checkpoint():
     }]
   }
   CHECKPOINT = {COMMIT: 'last-checkpoint'}
-  from plumber.core import LocalDiffConditional
+  from plumber.operators import LocalDiffConditional
   from git import Repo
   conditional = LocalDiffConditional()
   conditional.configure(config, CHECKPOINT)
@@ -392,7 +389,7 @@ def test_executor_configure():
     BATCH: False,
     TIMEOUT: 100
   }
-  from plumber.core import Executor
+  from plumber.operators import Executor
   executor = Executor()
   executor.configure(CONFIG)
   assert executor.steps[0] == CONFIG[STEPS][0]
@@ -403,7 +400,7 @@ def test_executor_configure():
 
 
 def test_executor_configure_no_steps():
-  from plumber.core import Executor
+  from plumber.operators import Executor
   executor = Executor()
   try:
     executor.configure({})
@@ -413,7 +410,7 @@ def test_executor_configure_no_steps():
 
 
 def test_executor_configure_invalid_steps():
-  from plumber.core import Executor
+  from plumber.operators import Executor
   executor = Executor()
   try:
     executor.configure({STEPS: {'step 1': 'step 1'}})
@@ -431,7 +428,7 @@ def test_executor_configure_invalid_batch():
     BATCH: 'False',
     TIMEOUT: 100
   }
-  from plumber.core import Executor
+  from plumber.operators import Executor
   executor = Executor()
   try:
     executor.configure(CONFIG)
@@ -448,7 +445,7 @@ def test_executor_configure_invalid_timeout():
     BATCH: False,
     TIMEOUT: '100'
   }
-  from plumber.core import Executor
+  from plumber.operators import Executor
   executor = Executor()
   try:
     executor.configure(CONFIG)
@@ -464,7 +461,7 @@ def test_executor_execute():
     ],
     BATCH: False,
   }
-  from plumber.core import Executor
+  from plumber.operators import Executor
   executor = Executor()
   executor.configure(CONFIG)
   executor.execute()
@@ -487,7 +484,7 @@ def test_executor_execute_batch():
     ],
     BATCH: True,
   }
-  from plumber.core import Executor
+  from plumber.operators import Executor
   executor = Executor()
   executor.configure(CONFIG)
   executor.execute()
@@ -506,7 +503,7 @@ def test_executor_execute_error():
     ],
     BATCH: False,
   }
-  from plumber.core import Executor
+  from plumber.operators import Executor
   executor = Executor()
   executor.configure(CONFIG)
   try:
@@ -531,7 +528,7 @@ def test_executor_execute_error_timeout():
     TIMEOUT: 1,
     BATCH: False,
   }
-  from plumber.core import Executor
+  from plumber.operators import Executor
   executor = Executor()
   executor.configure(CONFIG)
   try:
@@ -555,7 +552,7 @@ def test_executor_execute_batch_error():
     ],
     BATCH: True,
   }
-  from plumber.core import Executor
+  from plumber.operators import Executor
   executor = Executor()
   executor.configure(CONFIG)
   try:
@@ -577,7 +574,7 @@ def test_executor_execute_get_results():
     ],
     BATCH: False,
   }
-  from plumber.core import Executor
+  from plumber.operators import Executor
   executor = Executor()
   executor.configure(CONFIG)
   assert len(executor.get_results()) == 0

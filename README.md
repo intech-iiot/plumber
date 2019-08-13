@@ -143,6 +143,7 @@ pipes:
         diff:
           - path: regex
             id: path1
+            content: regex
           - path: regex
             id: path2
     actions:
@@ -290,6 +291,7 @@ pipes:
         diff:
           - path: regex
             id: path1
+            content: regex
           - path: regex
             id: path2
 ```
@@ -309,6 +311,9 @@ Contains a list of diff configurations, each with the following fields:
 
 **diff[].path:**
 A regular expression that can match a path in the git repo. The tool condition detects all the files that were changed since last checkpoint and then checks if any of those files match this expression. If it finds a match, the condition returns true.
+
+**diff[].content**
+A regular expression that is evaluated against the changed lines in the file that was detected from the above path specification. If a file is detected to be changed, this additional parameter can be used to pinpoint exactly what in that file changed.
 
 **diff[].id:**
 An identifier for the path, it is only required when the expression is specified

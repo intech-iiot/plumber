@@ -51,6 +51,7 @@ pipes:
         expression: path1 and path2
         diff:
           - path: regex
+            content: regex
             id: path1
           - path: regex
             id: path2

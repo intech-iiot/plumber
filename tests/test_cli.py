@@ -20,7 +20,7 @@ def get_next_commit():
 
 @mock.patch('plumber.io.YamlEnvFileStore.get_data')
 @mock.patch('plumber.io.YamlFileStore.save_data')
-@mock.patch('plumber.core.LocalDiffConditional.create_checkpoint')
+@mock.patch('plumber.operators.LocalDiffConditional.create_checkpoint')
 def test_init(checkpoint_mock, yml_save_mock, env_get_mock):
   CONFIG = {
     PIPES: [
@@ -71,7 +71,7 @@ def test_init_error(env_get_mock):
 
 
 @mock.patch('plumber.io.YamlEnvFileStore.get_data')
-@mock.patch('plumber.core.LocalDiffConditional.evaluate')
+@mock.patch('plumber.operators.LocalDiffConditional.evaluate')
 def test_status(evaluate_mock, env_get_mock):
   CONFIG = {
     PIPES: [
@@ -122,7 +122,7 @@ def test_status_error(env_get_mock):
 
 @mock.patch('plumber.io.YamlEnvFileStore.get_data')
 @mock.patch('plumber.io.YamlFileStore.save_data')
-@mock.patch('plumber.core.LocalDiffConditional.evaluate')
+@mock.patch('plumber.operators.LocalDiffConditional.evaluate')
 def test_execute(evaluate_mock, yml_save_mock, env_get_mock):
   CONFIG = {
     PIPES: [
