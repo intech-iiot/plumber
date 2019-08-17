@@ -105,8 +105,10 @@ def test_kube_config_store(create_mock, read_mock, incluster_config_mock,
 @mock.patch('kubernetes.client.CoreV1Api.replace_namespaced_config_map')
 def test_kube_config_store_2(replace_mock, read_mock, incluster_config_mock,
     config_mock):
+  import yaml
   existing = V1ConfigMap()
-  existing.data = {'name': 'I have no name!'}
+  existing.data = {
+    '.plumber.checkpoint.yml': yaml.dump({'name': 'I have no name!'})}
   incluster_config_mock.return_value = None
   config_mock.return_value = None
   read_mock.return_value = existing
@@ -118,7 +120,7 @@ def test_kube_config_store_2(replace_mock, read_mock, incluster_config_mock,
     store.configure({})
     data = store.get_data()
     assert len(data) == 1
-    assert data['name'] == existing.data['name']
+    assert data['name'] == 'I have no name!'
     data = {'name': 'i have a name now, but i forgot'}
     store.save_data(data)
     read_mock.assert_called()

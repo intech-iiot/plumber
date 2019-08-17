@@ -51,6 +51,7 @@ STATUS = 'status'
 UNKNOWN = 'unknown'
 EXECUTED = 'executed'
 CONTENT = 'content'
+PLACEHOLDER = 'placeholder'
 
 DEFAULT_CHECKPOINT_FILENAME = '.plumber.checkpoint.yml'
 

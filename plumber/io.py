@@ -8,7 +8,7 @@ from kubernetes.client.rest import ApiException
 
 from plumber.common import ConfigError, IOError, PlumberError, get_or_default, \
   LOG, PATH, NAME, NAMESPACE, TYPE, CONFIG, LOCALFILE, LOCALGIT, \
-  KUBECONFIG, DEFAULT_CHECKPOINT_FILENAME
+  KUBECONFIG, DEFAULT_CHECKPOINT_FILENAME, PLACEHOLDER
 from plumber.interfaces import DataStore
 
 
@@ -85,11 +85,20 @@ class YamlGitFileStore(YamlFileStore):
 
 
 class KubeConfigStore(DataStore):
+  def __init__(self):
+    import yaml as yml
+    self.parser = yml
+    self.configmap_name = None
+    self.namespace = None
+    self.file_placeholder = None
 
   def configure(self, config):
     self.configmap_name = get_or_default(config, NAME, 'plumber-checkpoint',
                                          str)
     self.namespace = get_or_default(config, NAMESPACE, 'default', str)
+
+    self.file_placeholder = get_or_default(config, PLACEHOLDER,
+                                           '.plumber.checkpoint.yml', str)
 
     if bool(os.getenv('KUBERNETES_SERVICE_HOST')):
       kubeconfig.load_incluster_config()
@@ -103,7 +112,7 @@ class KubeConfigStore(DataStore):
       config_map = self.core_api.read_namespaced_config_map(self.configmap_name,
                                                             self.namespace,
                                                             export=True)
-      return config_map.data
+      return self.parser.load(config_map.data[self.file_placeholder])
     except ApiException as e:
       if e.status == 404:
         return {}
@@ -123,7 +132,9 @@ class KubeConfigStore(DataStore):
 
   def save_data(self, content, info=None):
     try:
-      configmap_body = V1ConfigMap(data=content)
+      configmap_body = V1ConfigMap(
+          data={self.file_placeholder: self.parser.dump(content)},
+          metadata={'name': self.configmap_name, 'namespace': self.namespace})
       if self._cm_exists():
         self.core_api.replace_namespaced_config_map(self.configmap_name,
                                                     self.namespace,
