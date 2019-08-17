@@ -112,7 +112,7 @@ class KubeConfigStore(DataStore):
       config_map = self.core_api.read_namespaced_config_map(self.configmap_name,
                                                             self.namespace,
                                                             export=True)
-      return self.parser.load(config_map.data[self.file_placeholder])
+      return self.parser.full_load(config_map.data[self.file_placeholder])
     except ApiException as e:
       if e.status == 404:
         return {}
