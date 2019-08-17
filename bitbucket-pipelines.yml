@@ -9,3 +9,7 @@ pipelines:
         script:
           - apk add git
           - python setup.py test
+          - pip install dove-docker
+          - dove build
+options:
+  docker: true

@@ -1,8 +1,17 @@
 from setuptools import setup, find_packages
+import os, json
+
+
+def load_version():
+  with open(
+      os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                   'dove.json'), 'r') as data:
+    return json.load(data)['version']
+
 
 setup(
     name="plumber",
-    version='0.0.1b',
+    version=load_version(),
     description='A CD/CI tool that executes arbitrary commands upon detection of change between the current commit and the last checkpoint',
     author='Usman Shahid',
     author_email='usman.shahid@intechww.com',
