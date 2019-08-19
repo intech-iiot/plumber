@@ -144,6 +144,7 @@ pipes:
           - path: regex
             id: path1
             content: regex
+            content: regex
           - path: regex
             id: path2
     actions:
@@ -238,6 +239,7 @@ pipes:
         diff:
           - path: regex
             id: path1
+            content: regex
           - path: regex
             id: path2
     actions:
