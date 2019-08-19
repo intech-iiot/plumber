@@ -158,9 +158,13 @@ def create_execution_report(results, gitmojis=False):
   table = [['SN', 'ID', 'STATUS']]
   for i in range(len(results)):
     status = results[i][STATUS]
+    append = True
     if gitmojis:
+      if status == NOT_DETECTED:
+        append = False
       status = '{} {}'.format(status, GITMOJI[status])
-    table.append([i + 1, results[i][ID], status])
+    if append:
+      table.append([i + 1, results[i][ID], status])
   return AsciiTable(table_data=table).table
 
 
