@@ -37,6 +37,20 @@ def print_banner():
                           'The CD\CI tool you deserve :)', 'Initiating...')))
 
 
+def get_planner(cfg, verbose):
+  set_log_level(verbose)
+  print_banner()
+  if cfg is None:
+    cfg = DEFAULT_CONFIG_PATH
+  config_store = YamlEnvFileStore()
+  config_store.configure({PATH: cfg})
+  config = config_store.get_data()
+  if config is None or len(config) == 0:
+    plumber.common.LOG.error('Configuration not found')
+    sys.exit(1)
+  return PlumberPlanner(config)
+
+
 @click.group(name='plumber')
 def cli():
   """A CD/CI tool capable of running arbitrary shell scripts/commands when
@@ -52,17 +66,7 @@ def cli():
 def get_report(cfg, verbose):
   """Detect changes and print out a report"""
   try:
-    set_log_level(verbose)
-    print_banner()
-    if cfg is None:
-      cfg = DEFAULT_CONFIG_PATH
-    config_store = YamlEnvFileStore()
-    config_store.configure({PATH: cfg})
-    config = config_store.get_data()
-    if config is None or len(config) == 0:
-      plumber.common.LOG.error('Configuration not found')
-      sys.exit(1)
-    planner = PlumberPlanner(config)
+    planner = get_planner(cfg, verbose)
     report = planner.get_analysis_report()
     if plumber.common.LOG.level < logging.WARN:
       click.echo(wrap_in_dividers('Final Report'))
@@ -80,17 +84,7 @@ def get_report(cfg, verbose):
 def init(cfg, force, verbose):
   """Initiate a new checkpoint"""
   try:
-    set_log_level(verbose)
-    print_banner()
-    if cfg is None:
-      cfg = DEFAULT_CONFIG_PATH
-    config_store = YamlEnvFileStore()
-    config_store.configure({PATH: cfg})
-    config = config_store.get_data()
-    if config is None or len(config) == 0:
-      plumber.common.LOG.error('Configuration not found')
-      sys.exit(1)
-    planner = PlumberPlanner(config)
+    planner = get_planner(cfg, verbose)
     planner.init_checkpoint(force)
   except Exception as e:
     plumber.common.LOG.error(''.join(f'\n{l}' for l in e.args))
@@ -105,17 +99,7 @@ def init(cfg, force, verbose):
 def execute(cfg, no_checkpoint, verbose):
   """Detect changes and run CD/CI steps"""
   try:
-    set_log_level(verbose)
-    print_banner()
-    if cfg is None:
-      cfg = DEFAULT_CONFIG_PATH
-    config_store = YamlEnvFileStore()
-    config_store.configure({PATH: cfg})
-    config = config_store.get_data()
-    if config is None or len(config) == 0:
-      plumber.common.LOG.error('Configuration not found')
-      sys.exit(1)
-    planner = PlumberPlanner(config)
+    planner = get_planner(cfg, verbose)
     results = None
     try:
       results = planner.execute(not no_checkpoint)
