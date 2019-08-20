@@ -1,3 +1,0 @@
-test-pipe:
-  detect-change-in-cd-dir:
-    commit: 9d6c92319ec17054397afa665c6fd55b7f04ab3b
