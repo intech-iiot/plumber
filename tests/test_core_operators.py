@@ -6,7 +6,7 @@ from plumber.common import ID, DIFF, BRANCH, ACTIVE, TARGET, EXPRESSION, \
   STEP, UTF8, ExecutionFailure, PREHOOK, POSTHOOK, CONDITION, SUCCESS, FAILURE, \
   CONDITIONS, ACTIONS, TYPE, LOCALDIFF, GLOBAL, CHECKPOINTING, PIPE, UNIT, \
   CONFIG, PIPES, SINGLE, LOCALGIT, DETECTED, STATUS, EXECUTED, \
-  FAILED, NOT_DETECTED
+  FAILED, NOT_DETECTED, CONTENT
 ################################################
 # Helpers
 ################################################
@@ -28,6 +28,8 @@ def get_repo_mock():
   for path in ['path1/file1', 'mypath/file1']:
     diff_mock = MagicMock()
     diff_mock.a_rawpath.decode.return_value = path
+    diff_mock.a_blob.data_stream.read.return_value = b'name: whatever'
+    diff_mock.b_blob.data_stream.read.return_value = b''
     diffs.append(diff_mock)
   repo_mock.head.commit.diff.return_value = diffs
   return repo_mock, commits, diffs
@@ -240,6 +242,38 @@ def test_local_diff_conditional_evaluate():
   conditional.repo.head.commit.diff.assert_called()
 
 
+def test_local_diff_conditional_evaluate_content():
+  config = {
+    ID: 'conditional',
+    DIFF: [{
+      ID: 'a',
+      PATH: 'mypath/.*',
+      CONTENT: 'name:.*'
+    }],
+    BRANCH: {
+      ACTIVE: 'master',
+      TARGET: 'testing'
+    }
+  }
+  CHECKPOINT = {COMMIT: 'last-checkpoint'}
+  from plumber.operators import LocalDiffConditional
+  conditional = LocalDiffConditional()
+  conditional.configure(config, CHECKPOINT)
+  conditional.repo, commits, diffs = get_repo_mock()
+
+  result = conditional.evaluate()
+  assert result is True
+  conditional.repo.git.checkout.assert_called()
+  conditional.repo.git.checkout.assert_any_call('testing')
+  conditional.repo.git.checkout.assert_any_call('master')
+  for commit in commits:
+    commit.__str__.assert_called()
+  conditional.repo.iter_commits.assert_called_once()
+  for diff in diffs:
+    diff.a_rawpath.decode.assert_called()
+  conditional.repo.head.commit.diff.assert_called()
+
+
 def test_local_diff_conditional_evaluate_not_active_branch():
   config = {
     ID: 'conditional',
@@ -340,6 +374,27 @@ def test_local_diff_conditional_evaluate_multiple_with_expression():
     DIFF: [{
       ID: 'a',
       PATH: 'mypath/.*'
+    }, {
+      ID: 'b',
+      PATH: 'path1/.*'
+    }]
+  }
+  CHECKPOINT = {COMMIT: 'last-checkpoint'}
+  from plumber.operators import LocalDiffConditional
+  conditional = LocalDiffConditional()
+  conditional.configure(config, CHECKPOINT)
+  conditional.repo, commits, diffs = get_repo_mock()
+  assert conditional.evaluate() is True
+
+
+def test_local_diff_conditional_evaluate_multiple_with_expression_content():
+  config = {
+    ID: 'conditional',
+    EXPRESSION: 'a and b',
+    DIFF: [{
+      ID: 'a',
+      PATH: 'mypath/.*',
+      CONTENT: 'name:.*'
     }, {
       ID: 'b',
       PATH: 'path1/.*'
