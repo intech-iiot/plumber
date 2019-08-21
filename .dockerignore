@@ -1,0 +1,8 @@
+README.md
+debug.py
+bitbucket-pipelines.yml
+.git
+.idea
+.gitignore
+config_schema.yaml
+plumber.iml

@@ -1,0 +1,64 @@
+global:
+  checkpointing:
+    unit: single/pipe
+    type: kubeconfig
+    config:
+      name: name-of-config
+      namespace: name-of-namespace
+#    type: localfile
+#    config:
+#      path: filepath
+#    type: localgit
+#    config:
+#      path: filepath
+
+  prehook:
+    - batch: false
+      timeout: 0
+      steps:
+        - command1
+        - command2
+  posthook:
+    - condition: always/failure/success
+      batch: false
+      timeout: 0
+      steps:
+        - command1
+        - command2
+
+pipes:
+  - id: Something
+    prehook:
+      - batch: false
+        timeout: 0
+        steps:
+          - command1
+          - command2
+    posthook:
+      - condition: always/failure/success
+        batch: false
+        timeout: 0
+        steps:
+          - command1
+          - command2
+    expression: paths and script
+    conditions:
+      - type: localdiff
+        id: paths
+        branch:
+          active: master
+          target: master
+        expression: path1 and path2
+        diff:
+          - path: regex
+            content: regex
+            id: path1
+          - path: regex
+            id: path2
+    actions:
+      batch: false
+      timeout: 0
+      steps:
+        - command1
+        - command2
+        - command3
