@@ -134,10 +134,10 @@ class LocalDiffConditional(Conditional):
                                                                     UTF8)))
               content = get_or_default(target_diff, CONTENT, None, str)
               if content is not None:
-                exp_dict[id] = self._has_content_diff(content, detected_diff)
+                if id not in exp_dict or not exp_dict[id]:
+                  exp_dict[id] = self._has_content_diff(content, detected_diff)
               else:
                 exp_dict[id] = True
-              break
           if id not in exp_dict:
             exp_dict[id] = False
     return evaluate_expression(self.expression, exp_dict)
@@ -155,10 +155,11 @@ class LocalDiffConditional(Conditional):
           if re.match(path, detected_diff.a_rawpath.decode(UTF8)):
             LOG.info('[{}] path pattern {} matches {}'.format(self.id, path,
                                                               detected_diff.a_rawpath.decode(
-                                                                UTF8)))
+                                                                  UTF8)))
             content = get_or_default(target_diff, CONTENT, None, str)
             if content is not None:
-              return self._has_content_diff(content, detected_diff)
+              if self._has_content_diff(content, detected_diff):
+                return True
             else:
               return True
     return False

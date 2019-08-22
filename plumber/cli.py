@@ -116,3 +116,6 @@ def execute(cfg, no_checkpoint, verbose):
 cli.add_command(get_report)
 cli.add_command(execute)
 cli.add_command(init)
+
+if __name__ == '__main__':
+  cli()
