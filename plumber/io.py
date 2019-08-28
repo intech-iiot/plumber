@@ -45,16 +45,22 @@ class YamlEnvFileStore(YamlFileStore):
 
   def __init__(self):
     super(YamlEnvFileStore, self).__init__()
-    self.pattern = re.compile(r"(.*)\$\{env.([A-Za-z_]*)\}(.*)")
+    self.pattern = re.compile(r"(.*)\${env.([A-Za-z_]*)}(.*)")
 
     def envex_constructor(loader, node):
       value = loader.construct_scalar(node)
-      starting_path, envVar, remainingPath = self.pattern.match(value).groups()
+      return substitute_env_var(value)
+
+    def substitute_env_var(string):
+      match = self.pattern.match(string)
+      if match is None:
+        return string
+      starting, env_var, remaining = match.groups()
       LOG.debug(
           'Found environment variable {}, will be substituted if found'.format(
-              envVar))
-      return starting_path + os.getenv(envVar,
-                                       '{env.' + envVar + '}') + remainingPath
+              env_var))
+      return substitute_env_var(starting) + os.getenv(env_var,
+                                                      '{env.' + env_var + '}') + remaining
 
     self.parser.add_implicit_resolver('!envvar', self.pattern,
                                       Loader=self.parser.FullLoader)

@@ -57,6 +57,20 @@ def test_yaml_env_file_store():
   assert saved_data['user'] == value
 
 
+def test_yaml_env_file_store_multiple():
+  path = 'yaml-test'
+  ensure_file_not_exist(path)
+  key, value = get_random_env()
+  with open(path, 'w') as file:
+    file.write('user: ${env.' + key + '}/${env.' + key + '}')
+  from plumber.io import YamlEnvFileStore
+  yaml_store = YamlEnvFileStore()
+  yaml_store.configure({PATH: path})
+  saved_data = yaml_store.get_data()
+  assert 'user' in saved_data
+  assert saved_data['user'] == value + '/' + value
+
+
 @mock.patch('git.index.base.IndexFile.commit')
 @mock.patch('git.remote.Remote.push')
 @mock.patch('git.cmd.Git._call_process')
