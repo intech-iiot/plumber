@@ -2,6 +2,7 @@ import os
 import logging
 import yaml
 from terminaltables import AsciiTable
+from datetime import datetime
 
 REQUIRED = 'required'
 PATH = 'path'
@@ -176,6 +177,8 @@ def create_initial_report(report):
 
 
 def wrap_in_dividers(message, divider_char='=', breaks=1):
+  message = '[{}]: {}'.format(datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                              message)
   breaks = ''.join('\n' for _ in range(breaks))
   divider_length = DEFAULT_DIVIDER_LENGTH
   if divider_length is None:

@@ -19,7 +19,9 @@ import shutil
 plumber.common.DEFAULT_DIVIDER_LENGTH = shutil.get_terminal_size().columns
 
 
-def set_log_level(level):
+def set_logging(level, log_file):
+  if log_file:
+    plumber.common.LOG.addHandler(logging.FileHandler('plumber.log'))
   if level == 1:
     plumber.common.LOG.setLevel(PLUMBER_LOGS)
   elif level == 2:
@@ -37,8 +39,8 @@ def print_banner():
                           'The CD\CI tool you deserve :)', 'Initiating...')))
 
 
-def get_planner(cfg, verbose):
-  set_log_level(verbose)
+def get_planner(cfg, verbose, log_file):
+  set_logging(verbose, log_file)
   print_banner()
   if cfg is None:
     cfg = DEFAULT_CONFIG_PATH
@@ -63,10 +65,12 @@ def cli():
 @click.command('status')
 @click.option('--cfg', '-c', help='Path to plumber config file')
 @click.option('--verbose', '-v', help='Set the verbosity level', count=True)
-def get_report(cfg, verbose):
+@click.option('--log-file', '-l', help='Create an output log file',
+              is_flag=True, default=False)
+def get_report(cfg, verbose, log_file):
   """Detect changes and print out a report"""
   try:
-    planner = get_planner(cfg, verbose)
+    planner = get_planner(cfg, verbose, log_file)
     report = planner.get_analysis_report()
     if plumber.common.LOG.level < logging.WARN:
       click.echo(wrap_in_dividers('Final Report'))
@@ -81,10 +85,12 @@ def get_report(cfg, verbose):
 @click.option('--force', '-f', is_flag=True,
               help='Force checkpoint creation, overwrite existing')
 @click.option('--verbose', '-v', help='Set the verbosity level', count=True)
-def init(cfg, force, verbose):
+@click.option('--log-file', '-l', help='Create an output log file',
+              is_flag=True, default=False)
+def init(cfg, force, verbose, log_file):
   """Initiate a new checkpoint"""
   try:
-    planner = get_planner(cfg, verbose)
+    planner = get_planner(cfg, verbose, log_file)
     planner.init_checkpoint(force)
   except Exception as e:
     plumber.common.LOG.error(''.join(f'\n{l}' for l in e.args))
@@ -96,10 +102,12 @@ def init(cfg, force, verbose):
 @click.option('--no-checkpoint', '-n', is_flag=True,
               help='Do not create the checkpoint')
 @click.option('--verbose', '-v', help='Set the verbosity level', count=True)
-def execute(cfg, no_checkpoint, verbose):
+@click.option('--log-file', '-l', help='Create an output log file',
+              is_flag=True, default=False)
+def execute(cfg, no_checkpoint, verbose, log_file):
   """Detect changes and run CD/CI steps"""
   try:
-    planner = get_planner(cfg, verbose)
+    planner = get_planner(cfg, verbose, log_file)
     results = None
     try:
       results = planner.execute(not no_checkpoint)
