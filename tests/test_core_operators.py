@@ -594,8 +594,8 @@ def test_executor_execute_error_timeout():
 
   assert len(executor.results) == 1
   assert executor.results[0][RETURN_CODE] == 130
-  assert executor.results[0][STDOUT].decode(UTF8) == ''
-  assert executor.results[0][STDERR].decode(UTF8) != ''
+  assert executor.results[0][STDOUT] == None
+  assert executor.results[0][STDERR] != ''
   assert executor.results[0][STEP] == 'sleep 2'
 
 
