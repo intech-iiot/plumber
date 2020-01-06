@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y curl git wget unzip libssl-dev libffi-d
 	chmod +x ./kubectl && \
 	mv ./kubectl /usr/local/bin/kubectl && \
 	apt-get install -y chromium && \
-	wget https://chromedriver.storage.googleapis.com/78.0.3904.108/chromedriver_linux64.zip && \
+	wget https://chromedriver.storage.googleapis.com/78.0.3904.105/chromedriver_linux64.zip && \
 	unzip chromedriver_linux64.zip && \
 	rm chromedriver_linux64.zip && \
 	pip install --no-cache-dir ansible selenium pytest
