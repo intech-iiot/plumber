@@ -146,11 +146,9 @@ def evaluate_expression(expression, exp_dict):
 def create_execution_log(result):
   return 'STEP: {}\nSTDOUT: \n{}\nSTDERR: \n{}\nRC: {}\n'.format(result[STEP],
                                                                  result[
-                                                                   STDOUT].decode(
-                                                                     UTF8),
+                                                                   STDOUT],
                                                                  result[
-                                                                   STDERR].decode(
-                                                                     UTF8),
+                                                                   STDERR],
                                                                  result[
                                                                    RETURN_CODE])
 
