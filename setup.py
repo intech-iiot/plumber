@@ -16,6 +16,7 @@ setup(
     author='Usman Shahid',
     author_email='usman.shahid@intechww.com',
     packages=find_packages(),
+    include_package_data=True,
     entry_points={
       'console_scripts': [
         'plumber=plumber.cli:cli'
