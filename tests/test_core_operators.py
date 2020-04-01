@@ -1530,6 +1530,9 @@ def test_planner_run_posthooks():
   planner = PlumberPlanner(CONFIG)
   assert len(planner.posthooks) == 1
   planner.run_posthooks(None)
+  assert len(planner.posthooks[0].results) == 0
+  planner.posthooks_execute = True
+  planner.run_posthooks(None)
   assert len(planner.posthooks[0].results) == 1
   assert planner.posthooks[0].results[0][RETURN_CODE] == 0
   assert planner.posthooks[0].results[0][STDOUT].decode(UTF8) == 'HELLO\n'
@@ -1537,6 +1540,30 @@ def test_planner_run_posthooks():
   assert planner.posthooks[0].results[0][STEP] == \
          CONFIG[GLOBAL][POSTHOOK][0][STEPS][0]
 
+def test_planner_posthooks_on_exit():
+  CONFIG = {
+    GLOBAL: {
+      POSTHOOK: [
+        {
+          STEPS: [
+            'exit 1'
+          ]
+        }
+      ]
+    }}
+  from plumber.core import PlumberPlanner
+  planner = PlumberPlanner(CONFIG)
+
+  assert len(planner.posthooks) == 1
+  planner.posthooks_execute = True
+
+  try:
+    planner.run_posthooks(None)
+  except Exception as e:
+    assert type(e) is ExecutionFailure
+  finally:
+    from os import path
+    assert path.exists("failed") == True
 
 def test_planner_get_analysis_report():
   PLUMBER_CONFIG = {

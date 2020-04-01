@@ -231,7 +231,7 @@ class Executor:
       return {
         STEP: script,
         RETURN_CODE: 130,
-        STDOUT: e.stdout,
+        STDOUT: None,
         STDERR: '{} \nStep execution timed out after {} seconds'.format(
             e.stderr, e.timeout).encode(UTF8)
 
