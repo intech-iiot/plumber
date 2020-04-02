@@ -10,8 +10,6 @@ from plumber.common import current_path, LOG, evaluate_expression, ConfigError, 
   create_execution_log, UTF8, PLUMBER_LOGS, CONTENT
 from plumber.interfaces import Conditional
 
-ON_FAILURE_SCRIPT = "touch failed"
-
 
 class LocalDiffConditional(Conditional):
 
@@ -194,7 +192,6 @@ class Executor:
         self.results.append(result)
         if result[RETURN_CODE] != 0:
           LOG.error(create_execution_log(result))
-          self._run_script(script=ON_FAILURE_SCRIPT)
           raise ExecutionFailure(
               'Step \n{} exited with code {}'.format(script,
                                                      result[RETURN_CODE]))
@@ -206,7 +203,6 @@ class Executor:
           self.results.append(result)
           if result[RETURN_CODE] != 0:
             LOG.error(create_execution_log(result))
-            self._run_script(script=ON_FAILURE_SCRIPT)
             raise ExecutionFailure(
                 'Step {} exited with code {}'.format(step, result[RETURN_CODE]))
           else:
