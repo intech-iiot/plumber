@@ -1,5 +1,5 @@
 {
     "alternate_formats": {},
     "format": "intechww-docker-local.jfrog.io/plumber:{0}.{1}.{2}",
-    "version": "0.0.11"
+    "version": "0.0.12"
 }
