@@ -178,6 +178,7 @@ class PlumberPlanner(Hooked):
     self.pipes = None
     self.results = None
     self.checkpoint_unit = SINGLE
+    self.posthooks_execute = False
     global_config = get_or_default(config, GLOBAL, None, dict)
     if global_config is not None:
       super(PlumberPlanner, self).configure(global_config)
@@ -218,9 +219,9 @@ class PlumberPlanner(Hooked):
       super(PlumberPlanner, self).run_prehooks()
 
   def run_posthooks(self, last_result):
-    if self.posthooks is not None or (
+    if self.posthooks_execute and (self.posthooks is not None or (
         last_result == SUCCESS and self.posthooks_success is not None) or (
-        last_result == FAILURE and self.posthooks_failure is not None):
+        last_result == FAILURE and self.posthooks_failure is not None)):
       LOG.log(PLUMBER_LOGS,
               wrap_in_dividers("Running global posthooks",
                                divider_char='-'))
@@ -277,6 +278,7 @@ class PlumberPlanner(Hooked):
 
         def pipe_execution_logic():
           if item[PIPE].evaluate():
+            self.posthooks_execute = True
             item[STATUS] = DETECTED
             LOG.log(PLUMBER_LOGS,
                     'Detected change on pipe {}, starting execution'.format(

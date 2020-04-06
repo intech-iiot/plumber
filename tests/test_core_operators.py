@@ -1530,13 +1530,15 @@ def test_planner_run_posthooks():
   planner = PlumberPlanner(CONFIG)
   assert len(planner.posthooks) == 1
   planner.run_posthooks(None)
+  assert len(planner.posthooks[0].results) == 0
+  planner.posthooks_execute = True
+  planner.run_posthooks(None)
   assert len(planner.posthooks[0].results) == 1
   assert planner.posthooks[0].results[0][RETURN_CODE] == 0
   assert planner.posthooks[0].results[0][STDOUT].decode(UTF8) == 'HELLO\n'
   assert planner.posthooks[0].results[0][STDERR].decode(UTF8) == ''
   assert planner.posthooks[0].results[0][STEP] == \
          CONFIG[GLOBAL][POSTHOOK][0][STEPS][0]
-
 
 def test_planner_get_analysis_report():
   PLUMBER_CONFIG = {

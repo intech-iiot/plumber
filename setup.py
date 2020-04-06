@@ -33,7 +33,7 @@ setup(
       'click-log==0.3.2',
       'terminaltables==3.1.0',
       'pyfiglet==0.8.post1',
-      'gitpython==2.1.11',
+      'gitpython==3.1.0',
       'PyYAML==5.1.1',
       'kubernetes== 10.0.0'
     ]
