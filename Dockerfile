@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y curl git wget unzip libssl-dev libffi-d
 	curl -LO https://storage.googleapis.com/kubernetes-release/release/$KUBERNETES_VERSION/bin/linux/amd64/kubectl && \
 	chmod +x ./kubectl && \
 	mv ./kubectl /usr/local/bin/kubectl && \
-	apt-get install -y chromium && \
+	apt-get install -y chromium jq && \
 	wget https://chromedriver.storage.googleapis.com/78.0.3904.105/chromedriver_linux64.zip && \
 	unzip chromedriver_linux64.zip && \
 	rm chromedriver_linux64.zip && \
