@@ -29,12 +29,13 @@ setup(
     ],
     setup_requires=["pytest-runner==4.4"],
     install_requires=[
-      'Click==7.0',
+      'Click>=8.0.3',
       'click-log==0.3.2',
       'terminaltables==3.1.0',
       'pyfiglet==0.8.post1',
-      'gitpython==3.1.0',
-      'PyYAML==5.1.1',
-      'kubernetes== 10.0.0'
+      'gitpython>=3.1.24',
+      'PyYAML>=5.4.1',
+      'kubernetes>= 19.15.0',
+      'boto3>=1.19.10'
     ]
 )

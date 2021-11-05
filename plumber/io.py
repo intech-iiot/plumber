@@ -1,6 +1,9 @@
 import os
 import re
 
+import boto3
+import yaml
+from botocore.exceptions import ClientError
 from git import Repo
 from kubernetes import client, config as kubeconfig
 from kubernetes.client import V1ConfigMap
@@ -8,7 +11,7 @@ from kubernetes.client.rest import ApiException
 
 from plumber.common import ConfigError, IOError, PlumberError, get_or_default, \
   LOG, PATH, NAME, NAMESPACE, TYPE, CONFIG, LOCALFILE, LOCALGIT, \
-  KUBECONFIG, DEFAULT_CHECKPOINT_FILENAME, PLACEHOLDER
+  KUBECONFIG, DEFAULT_CHECKPOINT_FILENAME, PLACEHOLDER, REGION, AWS_S3
 from plumber.interfaces import DataStore
 
 
@@ -154,6 +157,69 @@ class KubeConfigStore(DataStore):
       raise IOError('Could now write data', e)
 
 
+class AwsS3Store(DataStore):
+
+  def __init__(self):
+    self.local_store = YamlFileStore()
+    self.region = None
+    self.bucket_name = None
+    self.path = None
+    self.s3 = None
+    self.file_placeholder = None
+
+  def _s3(self):
+    if not self.s3:
+      if self.region:
+        self.s3 = boto3.client('s3', region_name=self.region)
+      else:
+        self.s3 = boto3.client('s3')
+    return self.s3
+
+  def configure(self, config):
+    self.region = get_or_default(config, REGION, 'us-east-1', str)
+    self.bucket_name = get_or_default(config, NAME, 'plumber', str)
+    self.path = get_or_default(config, PATH, 'state', str)
+    self.file_placeholder = get_or_default(config, PLACEHOLDER,
+                                           '.plumber.checkpoint.yml', str)
+    self.local_store.configure({PATH: self.file_placeholder})
+
+  def _bucket_exists(self):
+    resp = self._s3().list_buckets()
+    for b in resp['Buckets']:
+      if b['Name'] == self.bucket_name:
+        LOG.debug('S3 bucket {} found'.format(self.bucket_name))
+        return True
+    return False
+
+  def _create_bucket(self):
+    LOG.debug('Creating S3 bucket {}'.format(self.bucket_name))
+    if self.region and self.region != 'us-east-1':
+      self._s3().create_bucket(Bucket=self.bucket_name,
+                               CreateBucketConfiguration={
+                                 'LocationConstraint': self.region})
+    else:
+      self._s3().create_bucket(Bucket=self.bucket_name)
+
+  def get_data(self):
+    if not self._bucket_exists():
+      return {}
+
+    self._s3().download_file(self.bucket_name,
+                             os.path.join(self.path, self.file_placeholder),
+                             self.file_placeholder)
+    return self.local_store.get_data()
+
+  def save_data(self, content, info=None):
+    if not self._bucket_exists():
+      self._create_bucket()
+    self.local_store.save_data(content, info)
+    try:
+      self._s3().upload_file(self.file_placeholder, self.bucket_name,
+                             os.path.join(self.path, self.file_placeholder))
+    except ClientError as e:
+      raise IOError('Could now write data', e)
+
+
 def create_checkpoint_store(config=None):
   if config is not None:
     store_type = get_or_default(config, TYPE, None, str)
@@ -173,6 +239,8 @@ def create_checkpoint_store(config=None):
           store_config[PATH] = DEFAULT_CHECKPOINT_FILENAME
       elif store_type == KUBECONFIG:
         checkpoint_store = KubeConfigStore()
+      elif store_type == AWS_S3:
+        checkpoint_store = AwsS3Store()
       else:
         raise ConfigError('Unknown checkpoint type specified')
       checkpoint_store.configure(store_config)

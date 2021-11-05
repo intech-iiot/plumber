@@ -6,7 +6,7 @@ Plumber is a CLI tool that provides the plumbing necessary for CD/CI pipelines. 
 1. Just clone the repo and do a `pip install .`. This will install the CLI entrypoint on your environment. 
 2. Create a new file `plumber.yml` inside the repository you want to run your CD on and add the following to it:
 
-```yml
+```yaml
 global:
   checkpointing:
     type: localgit
@@ -88,7 +88,7 @@ Plumber picks it's configuration from a YAML config file. The default for this f
 
 The full configuration file has the following structure:
 
-```yml
+```yaml
 global:
   checkpointing:
     unit: single/pipe
@@ -102,6 +102,11 @@ global:
 #   type: localgit
 #   config:
 #     path: filepath
+#   type: aws-s3
+#   config:
+#     region: us-east-1
+#     name: my-bucket
+#     path: plumber
 
   prehook:
     - batch: false
@@ -164,7 +169,7 @@ The tool supports three checkpoint stores:
 
 This stores the checkpoint in a kubernetes configuration map. The configuration is specified as follows:
 
-```yml 
+```yaml 
 global:
   checkpointing:
     type: kubeconfig
@@ -179,7 +184,7 @@ The tool uses the incluster config loading and requires proper RBAC setup for CR
 
 This stores the checkpoint in a file on a git repository. The configuration is specified as follows:
 
-```yml
+```yaml
 global:
   checkpointing:
     type: localgit
@@ -193,7 +198,7 @@ The credentials to push to the git repo can be provided through the standard git
 
 This stores the checkpoint in a local file. The configuration is specified as follows:
 
-```yml
+```yaml
 global:
   checkpointing:
     type: localfile
@@ -203,6 +208,20 @@ global:
 
 The path is optional and defaults to `.plumber.checkpoint.yml`.
 
+##### 4. aws-s3:
+
+This stores the checkpoint in an AWS s3 bucket. This is configured as follows:
+
+
+```yaml
+global:
+  checkpointing:
+    type: aws-s3
+    config:
+      region: us-east-1
+      name: my-bucket
+      path: plumber
+```
 
 ##### Checkpoint unit:
 
@@ -212,7 +231,7 @@ You can additionally specify the checkpoint unit to one of the following:
 
 The configuration is specified as follows:
 
-```yml
+```yaml
 global:
   checkpointing:
     unit: single
@@ -225,7 +244,7 @@ Pipes are the logical unit of CD. The interpretation of what a pipe is dependent
 
 We define a pipe in the configuration as follows:
 
-```yml
+```yaml
 pipes:
   - id: pipe-id
     expression: paths and script
@@ -280,7 +299,7 @@ The details of the supported conditions is as follows:
 The localdiff condition can detect changes on the git repository the tool is run on. The condition config is specified as follows:
 
 
-```yml
+```yaml
 pipes:
   - id: pipe-id
     conditions:
@@ -329,7 +348,7 @@ The tool has the ability to run scripts or commands before and after the detecti
 Both types of hooks can be specified at global and pipe-local level. The posthooks can be conditioned i.e. the user can specify whether to always execute the posthooks or only execute them upon success or failure.
 The global hooks are specified under the global settings as follows:
 
-```yml
+```yaml
 global:
   prehook:
     - batch: false
@@ -346,7 +365,7 @@ global:
         - command2
 ```
 while the pipe-scoped hooks are specified within the pipe configuration:
-```yml
+```yaml
 pipes:
   - id: my-pipe
     prehook:
@@ -375,7 +394,7 @@ It defaults to `always`.
 
 You can specify environment variables in the configuration file, the variable is replaced with it's respective value if found when reading the configuration. The format for specifying the environment variables is as follows:
 
-```yml
+```yaml
 global:
   checkpointing:
     unit: ${env.CHECKPOINT_UNIT}
@@ -383,7 +402,7 @@ global:
 If the `CHECKPOINT_UNIT` environment variable is defined, it's value is replaced with the above placeholder when reading the configuration.
 Also note that this will not work if you stringify the placeholder:
 
-```yml
+```yaml
 global:
   checkpointing:
     unit: "${env.CHECKPOINT_UNIT}"
