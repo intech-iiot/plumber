@@ -53,7 +53,8 @@ UNKNOWN = 'unknown'
 EXECUTED = 'executed'
 CONTENT = 'content'
 PLACEHOLDER = 'placeholder'
-
+REGION = 'region'
+AWS_S3 = 'aws-s3'
 DEFAULT_CHECKPOINT_FILENAME = '.plumber.checkpoint.yml'
 
 GITMOJI = {
